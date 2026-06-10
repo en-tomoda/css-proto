@@ -4,7 +4,7 @@ module.exports = {
       name: "css-proto",
       script: "npm",
       args: "run start",
-      cwd: "/Users/kazuya_tomoda/Develop/css-proto",
+      cwd: __dirname,
       instances: 1,
       exec_mode: "fork",
       autorestart: true,

@@ -9,11 +9,10 @@ import { YearAgoTodayCard }    from "@/components/home/year-ago-today-card";
 import { WeeklySummaryCard }  from "@/components/home/weekly-summary-card";
 
 export default function HomePage() {
-  return (
-    <div className="min-h-full bg-muted/40 py-8 px-4">
-      <div className="mx-auto max-w-4xl space-y-4">
-
-        {/* 上段: 挨拶 + XP */}
+  const motionSections = [
+    {
+      key: "top",
+      content: (
         <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[1fr_280px]">
           <GreetingCard />
           <div className="space-y-4">
@@ -21,11 +20,15 @@ export default function HomePage() {
             <WeeklySummaryCard />
           </div>
         </div>
-
-        {/* 今日の問い */}
-        <DailyQuestionCard />
-
-        {/* 中段: ミッション + 成長指標 */}
+      ),
+    },
+    {
+      key: "question",
+      content: <DailyQuestionCard />,
+    },
+    {
+      key: "middle",
+      content: (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <DailyMissionsCard />
           <div className="space-y-4">
@@ -33,13 +36,31 @@ export default function HomePage() {
             <AchievementBadges />
           </div>
         </div>
-
-        {/* 下段: 気づき + 1年前 */}
+      ),
+    },
+    {
+      key: "bottom",
+      content: (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <RecentInsightsCard />
           <YearAgoTodayCard />
         </div>
+      ),
+    },
+  ];
 
+  return (
+    <div className="min-h-full bg-muted/40 py-8 px-4">
+      <div className="mx-auto max-w-4xl space-y-4">
+        {motionSections.map((section, index) => (
+          <section
+            key={section.key}
+            className="animate-in fade-in slide-in-from-bottom-2 duration-500"
+            style={{ animationDelay: `${index * 120}ms`, animationFillMode: "both" }}
+          >
+            {section.content}
+          </section>
+        ))}
       </div>
     </div>
   );

@@ -1,36 +1,114 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CSAS（キャリアセレクタビリティシステム）モック
 
-## Getting Started
+AIとの対話でキャリア目標設定・アクション管理を支援し、上司が本人の承認のもとメンバーの状態を把握できる社内向けアプリのモックです。
 
-First, run the development server:
+- 技術: Next.js 16 / React / Tailwind CSS v4 / shadcn/ui / recharts / sonner
+- 仕様: [`docs/career-support-app-spec.md`](docs/career-support-app-spec.md)
+- データはすべてインメモリのダミー（DBなし）。ページをリロードすると状態はリセットされます
+
+---
+
+## 動作要件
+
+- Node.js 20.11 以上
+- npm
+- 常駐運用する場合: [pm2](https://pm2.keymetrics.io/)（`npm install -g pm2`）
+
+---
+
+## ローカルで開発する
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+http://localhost:3000 を開く。コードを編集すると自動でリロードされます。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## サーバーで起動する（pm2 で常駐）
 
-## Learn More
+git でプルしたあと、本番ビルドを pm2 に載せて常駐させます。
+（`next dev` ではなく本番ビルド + `next start` を使うため、軽量で安定します）
 
-To learn more about Next.js, take a look at the following resources:
+### 初回セットアップ
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# 1. リポジトリを取得
+git clone git@github.com:en-tomoda/css-proto.git
+cd css-proto
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# 2. 依存インストール
+npm ci            # package-lock.json どおりに厳密インストール（なければ npm install）
 
-## Deploy on Vercel
+# 3. pm2 を入れる（未インストールの場合のみ・グローバル）
+npm install -g pm2
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# 4. 本番ビルド
+npm run build
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# 5. pm2 で起動（ポート 3001）
+pm2 start ecosystem.config.cjs
+
+# 6. プロセス一覧を保存
+pm2 save
+```
+
+起動後は **http://localhost:3001** で稼働します。
+
+### 2回目以降（更新をデプロイする）
+
+コードを変更したら、必ず**ビルドし直してから** reload します。
+
+```bash
+git pull
+npm ci            # 依存に変更があった場合
+npm run build
+pm2 reload csas   # 無停止で入れ替え
+```
+
+### マシン再起動後も自動で立ち上げる（任意・sudo が必要）
+
+```bash
+pm2 startup       # 出力される「sudo ...」のコマンドをコピーして実行
+pm2 save          # 現在のプロセス一覧を保存
+```
+
+これで OS 再起動後も pm2 が CSAS を自動起動します。
+設定しない場合でも、手動で `pm2 resurrect` すれば保存済みの状態から復帰できます。
+
+---
+
+## pm2 運用コマンド
+
+| 目的 | コマンド |
+|---|---|
+| 状態確認 | `pm2 list` / `pm2 status` |
+| ログ確認 | `pm2 logs csas` |
+| 停止 | `pm2 stop csas` |
+| 起動 | `pm2 start csas` |
+| 再起動 | `pm2 restart csas` |
+| 無停止リロード | `pm2 reload csas` |
+| 削除 | `pm2 delete csas` |
+
+---
+
+## ポート設定
+
+ポートは [`ecosystem.config.cjs`](ecosystem.config.cjs) の `args`（`start -p 3001`）と `env.PORT` で管理しています。
+変更する場合は両方を書き換えて `pm2 reload csas` してください。
+`cwd: __dirname` としているため、サーバー上のどのパスに配置しても動作します。
+
+---
+
+## 主なディレクトリ
+
+```
+app/                  各画面（login / onboarding / mypage / chat / history / members / admin）
+components/           共通コンポーネント（app-shell, ta-section, reflection-list, en-logo など）
+lib/                  data.ts（ダミーデータ・型）, store.tsx（アプリ状態）
+public/               ロゴ画像
+docs/                 仕様書
+ecosystem.config.cjs  pm2 設定
+```

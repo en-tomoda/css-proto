@@ -1,22 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { CareerSelectabilityHeader } from "@/components/career-selectability-header";
+import { Toaster } from "sonner";
+import { AppProvider } from "@/lib/store";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "キャリア自律コーチング プロトタイプ",
-  description:
-    "キャリア自律を支援するダッシュボードとAI相談チャットのプロトタイプ",
+  title: "CSAS - キャリアセレクタビリティシステム",
+  description: "あなたのキャリアに、いつもそばで伴走するAIを。",
 };
 
 export default function RootLayout({
@@ -25,13 +14,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ja"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
-        <CareerSelectabilityHeader />
-        {children}
+    <html lang="ja">
+      <body className="antialiased">
+        <AppProvider>{children}</AppProvider>
+        <Toaster position="top-center" richColors closeButton />
       </body>
     </html>
   );

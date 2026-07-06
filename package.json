@@ -6,13 +6,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy": "bash ./deploy.sh",
+    "pm2:start": "pm2 start ecosystem.config.cjs --env production",
+    "pm2:restart": "pm2 restart css-proto",
+    "pm2:stop": "pm2 stop css-proto",
+    "pm2:delete": "pm2 delete css-proto",
+    "pm2:logs": "pm2 logs css-proto",
+    "pm2:save": "pm2 save"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
     "next": "16.2.6",
+    "pm2": "^7.0.1",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",

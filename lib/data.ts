@@ -19,6 +19,10 @@ export type PastAction = {
 export type Reflection = {
   /** 対象期間（例: 6/22〜6/28） */
   period: string;
+  /** 週の開始日 YYYY-MM-DD（カレンダー表示用） */
+  weekStart: string;
+  /** 実際に振り返りを行った日 YYYY-MM-DD（カレンダーのドット表示用） */
+  recordedAt: string;
   achieved: number;
   total: number;
   note: string;
@@ -58,6 +62,57 @@ export const REPLACEMENT_ACTIONS = [
   "チームの朝会で改善提案を1つ出す",
   "社内ナレッジに営業Tipsを1本投稿する",
 ];
+
+/** 情報をロックに戻す際の理由の選択肢 */
+export const LOCK_REASONS = [
+  "目標を見直し中のため",
+  "内容を更新してから見せたいため",
+  "いったん自分だけで整理したいため",
+  "その他",
+];
+
+/** メンバーの操作を上司に知らせる通知 */
+export type ManagerNotice = {
+  id: string;
+  memberId: string;
+  memberName: string;
+  key: DisclosureKey;
+  reason?: string;
+  at: string; // YYYY-MM-DD
+};
+
+export const MANAGER_NOTICES: ManagerNotice[] = [
+  {
+    id: "n1",
+    memberId: "m3",
+    memberName: "鈴木 大輝",
+    key: "pastActions",
+    reason: "いったん自分だけで整理したいため",
+    at: "2026-07-01",
+  },
+];
+
+/** 日本の祝日（YYYY-MM-DD → 名称）。デモ用に2026年の主要な祝日を収録 */
+export const JP_HOLIDAYS_2026: Record<string, string> = {
+  "2026-01-01": "元日",
+  "2026-01-12": "成人の日",
+  "2026-02-11": "建国記念の日",
+  "2026-02-23": "天皇誕生日",
+  "2026-03-20": "春分の日",
+  "2026-04-29": "昭和の日",
+  "2026-05-03": "憲法記念日",
+  "2026-05-04": "みどりの日",
+  "2026-05-05": "こどもの日",
+  "2026-05-06": "振替休日",
+  "2026-07-20": "海の日",
+  "2026-08-11": "山の日",
+  "2026-09-21": "敬老の日",
+  "2026-09-22": "国民の休日",
+  "2026-09-23": "秋分の日",
+  "2026-10-12": "スポーツの日",
+  "2026-11-03": "文化の日",
+  "2026-11-23": "勤労感謝の日",
+};
 
 /** デモ上の上司（「みたい」を送ってくる人） */
 export const MANAGER_NAME = "佐藤 拓也";
@@ -194,6 +249,8 @@ export const MEMBERS: Member[] = [
     reflections: [
       {
         period: "6/22〜6/28",
+        weekStart: "2026-06-22",
+        recordedAt: "2026-06-25",
         achieved: 2,
         total: 3,
         note: "後輩の商談同席でフィードバックの伝え方に手応え。要件ヒアリングは切り出せず持ち越し。",
@@ -213,6 +270,8 @@ export const MEMBERS: Member[] = [
       },
       {
         period: "6/15〜6/21",
+        weekStart: "2026-06-15",
+        recordedAt: "2026-06-20",
         achieved: 3,
         total: 3,
         note: "全部完了！チーム定例のファシリを任せてもらえて、まとめ役の楽しさに気づいた週。",
@@ -232,6 +291,8 @@ export const MEMBERS: Member[] = [
       },
       {
         period: "6/8〜6/14",
+        weekStart: "2026-06-08",
+        recordedAt: "2026-06-09",
         achieved: 2,
         total: 3,
         note: "リーダーシップ研修の学びを1on1で実践。数値レポートは時間切れ、朝イチにやると決めた。",
@@ -333,6 +394,8 @@ export const MEMBERS: Member[] = [
     reflections: [
       {
         period: "6/22〜6/28",
+        weekStart: "2026-06-22",
+        recordedAt: "2026-06-23",
         achieved: 3,
         total: 3,
         note: "提案書のペア作成で先輩の型を吸収できた。競合比較も好評。",
@@ -351,6 +414,8 @@ export const MEMBERS: Member[] = [
       },
       {
         period: "6/15〜6/21",
+        weekStart: "2026-06-15",
+        recordedAt: "2026-06-17",
         achieved: 2,
         total: 3,
         note: "レビュー会の運営が定着してきた。セミナー参加は日程が合わず翌週へ。",
@@ -432,6 +497,8 @@ export const MEMBERS: Member[] = [
     reflections: [
       {
         period: "6/22〜6/28",
+        weekStart: "2026-06-22",
+        recordedAt: "2026-06-26",
         achieved: 1,
         total: 3,
         note: "ロープレをお願いするタイミングが掴めなかった。金曜の振り返りは続いている。",
@@ -517,6 +584,8 @@ export const MEMBERS: Member[] = [
     reflections: [
       {
         period: "6/22〜6/28",
+        weekStart: "2026-06-22",
+        recordedAt: "2026-06-24",
         achieved: 3,
         total: 3,
         note: "ユーザーヒアリングで想定外のニーズを発見。企画の方向を少し修正。",
@@ -535,6 +604,8 @@ export const MEMBERS: Member[] = [
       },
       {
         period: "6/15〜6/21",
+        weekStart: "2026-06-15",
+        recordedAt: "2026-06-19",
         achieved: 3,
         total: 3,
         note: "一次審査通過！勢いのまま二次に向けた準備に着手。",
@@ -616,6 +687,8 @@ export const MEMBERS: Member[] = [
     reflections: [
       {
         period: "6/22〜6/28",
+        weekStart: "2026-06-22",
+        recordedAt: "2026-06-27",
         achieved: 1,
         total: 3,
         note: "提案の型を資料化できた。経営計画の読み込みは半分まで。",
@@ -692,5 +765,5 @@ export const RELATIONSHIP_LEVELS = [
   { level: 1, label: "はじめまして", note: "まずは基本情報とTAから理解を深めましょう" },
   { level: 2, label: "顔見知り", note: "目標が見えてきました。1on1で話題にしてみましょう" },
   { level: 3, label: "信頼関係", note: "取り組みが見えています。具体的な支援ができる関係です" },
-  { level: 4, label: "パートナー", note: "全情報が開示されています。伴走者として支援しましょう" },
+  { level: 4, label: "パートナー", note: "全情報が公開されています。伴走者として支援しましょう" },
 ];

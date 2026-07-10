@@ -39,6 +39,57 @@ function SummarySection({
   );
 }
 
+/** 振り返り1件のAIチャット要約モーダル（一覧・カレンダー共通） */
+export function ReflectionSummaryDialog({
+  reflection,
+  onClose,
+}: {
+  reflection: Reflection | null;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={!!reflection} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bot className="size-4 text-primary" />
+            {reflection?.period} の振り返り
+          </DialogTitle>
+          <DialogDescription>
+            AIチャットで行った振り返りの要約です（アクション {reflection?.achieved}/
+            {reflection?.total} 達成）
+          </DialogDescription>
+        </DialogHeader>
+        {reflection && (
+          <div className="space-y-4">
+            <SummarySection
+              icon={MessageSquare}
+              title="話したこと"
+              items={reflection.chatSummary.talked}
+            />
+            <SummarySection
+              icon={Lightbulb}
+              title="気づいたこと"
+              items={reflection.chatSummary.insights}
+            />
+            <SummarySection
+              icon={Footprints}
+              title="次の一歩"
+              items={reflection.chatSummary.nextSteps}
+            />
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="mb-1 text-xs font-semibold text-muted-foreground">
+                ひとことメモ
+              </p>
+              <p className="text-sm leading-relaxed">{reflection.note}</p>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ReflectionList({ reflections }: { reflections: Reflection[] }) {
   const [selected, setSelected] = useState<Reflection | null>(null);
 
@@ -69,45 +120,7 @@ export function ReflectionList({ reflections }: { reflections: Reflection[] }) {
         ))}
       </div>
 
-      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Bot className="size-4 text-primary" />
-              {selected?.period} の振り返り
-            </DialogTitle>
-            <DialogDescription>
-              AIチャットで行った振り返りの要約です（アクション {selected?.achieved}/
-              {selected?.total} 達成）
-            </DialogDescription>
-          </DialogHeader>
-          {selected && (
-            <div className="space-y-4">
-              <SummarySection
-                icon={MessageSquare}
-                title="話したこと"
-                items={selected.chatSummary.talked}
-              />
-              <SummarySection
-                icon={Lightbulb}
-                title="気づいたこと"
-                items={selected.chatSummary.insights}
-              />
-              <SummarySection
-                icon={Footprints}
-                title="次の一歩"
-                items={selected.chatSummary.nextSteps}
-              />
-              <div className="rounded-lg border bg-muted/40 p-3">
-                <p className="mb-1 text-xs font-semibold text-muted-foreground">
-                  ひとことメモ
-                </p>
-                <p className="text-sm leading-relaxed">{selected.note}</p>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ReflectionSummaryDialog reflection={selected} onClose={() => setSelected(null)} />
     </>
   );
 }

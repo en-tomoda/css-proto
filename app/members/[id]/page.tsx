@@ -151,7 +151,7 @@ function buildAiSummary(m: Member) {
   if (m.disclosure.goal === "approved") {
     parts.push(`目標は「${m.goal}」。${m.careerPath}を志向しています。`);
   } else {
-    parts.push("目標は未開示のため、TAと活用状況をもとに分析しています。");
+    parts.push("目標は非公開のため、TAと活用状況をもとに分析しています。");
   }
   if (m.disclosure.currentActions === "approved") {
     const stuck = m.currentActions.filter((a) => !a.done && a.carriedWeeks >= 4);
@@ -179,9 +179,9 @@ function LockedCard({ member, dkey }: { member: Member; dkey: DisclosureKey }) {
           <Eye className="size-5 text-secondary-foreground" />
         </div>
         <div>
-          <p className="font-medium">{DISCLOSURE_LABELS[dkey]}は未開示です</p>
+          <p className="font-medium">{DISCLOSURE_LABELS[dkey]}は非公開です</p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            本人が開示を承認すると、ここに表示されます
+            本人が公開を承認すると、ここに表示されます
           </p>
         </div>
         {state === "locked" ? (
@@ -271,7 +271,7 @@ export default function MemberDetailPage() {
               AIサマリー
             </CardTitle>
             <CardDescription>
-              開示されている情報のみをもとに生成しています
+              公開されている情報のみをもとに生成しています
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed">

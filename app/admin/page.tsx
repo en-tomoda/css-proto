@@ -581,7 +581,7 @@ export default function AdminPage() {
                     <Badge>エン標準（CSAベース）</Badge>
                   </div>
                   <div className="space-y-2">
-                    <Label>個社ごとの昇進要件</Label>
+                    <Label>自社標準（昇進要件、自社ルールの設定）</Label>
                     <Textarea
                       rows={6}
                       value={promotionReq}

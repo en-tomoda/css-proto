@@ -5,12 +5,13 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { TaSection } from "@/components/ta-section";
-import { ReflectionList } from "@/components/reflection-list";
+import { ReflectionCalendar } from "@/components/reflection-calendar";
 import { useApp } from "@/lib/store";
 import {
   CANCEL_REASONS,
   CAREER_PATHS,
   DISCLOSURE_LABELS,
+  LOCK_REASONS,
   MANAGER_NAME,
   type DisclosureKey,
   type WeeklyAction,
@@ -81,6 +82,10 @@ export default function MyPage() {
   const [cancelTarget, setCancelTarget] = useState<WeeklyAction | null>(null);
   const [cancelReason, setCancelReason] = useState(CANCEL_REASONS[0]);
   const [cancelNote, setCancelNote] = useState("");
+  // 開示/ロックの確認モーダル
+  const [approveKey, setApproveKey] = useState<DisclosureKey | null>(null);
+  const [lockKey, setLockKey] = useState<DisclosureKey | null>(null);
+  const [lockReason, setLockReason] = useState(LOCK_REASONS[0]);
 
   const actions = currentUser.currentActions;
   const doneCount = actions.filter((a) => a.done).length;
@@ -136,13 +141,13 @@ export default function MyPage() {
                   <LockKeyhole className="mt-0.5 size-4 shrink-0" />
                   {approvedKeys.length > 0 ? (
                     <p className="leading-relaxed">
-                      目標を更新しました。いま上司に開示している情報（
+                      目標を更新しました。いま上司に公開している情報（
                       {approvedKeys.map((k) => DISCLOSURE_LABELS[k]).join("・")}
-                      ）をいったんロックしますか？
+                      ）をいったん非公開にしますか？
                     </p>
                   ) : (
                     <p className="leading-relaxed">
-                      目標を更新しました。目標が変わると上司に見せたい情報も変わることがあります。開示状況を確認しておきましょう。
+                      目標を更新しました。目標が変わると上司に見せたい情報も変わることがあります。公開状況を確認しておきましょう。
                     </p>
                   )}
                 </div>
@@ -154,10 +159,10 @@ export default function MyPage() {
                         className="rounded-full"
                         onClick={() => {
                           resolveGoalChangePrompt(true);
-                          toast.success("開示中の情報をロックしました");
+                          toast.success("公開中の情報を非公開にしました");
                         }}
                       >
-                        ロックする
+                        非公開にする
                       </Button>
                       <Button
                         size="sm"
@@ -200,12 +205,9 @@ export default function MyPage() {
                   <Button
                     size="sm"
                     className="rounded-full"
-                    onClick={() => {
-                      respondDisclosure(currentUser.id, key, true);
-                      toast.success(`「${DISCLOSURE_LABELS[key]}」を開示しました`);
-                    }}
+                    onClick={() => setApproveKey(key)}
                   >
-                    開示する
+                    公開する
                   </Button>
                   <Button
                     size="sm"
@@ -213,7 +215,7 @@ export default function MyPage() {
                     className="rounded-full"
                     onClick={() => {
                       respondDisclosure(currentUser.id, key, false);
-                      toast(`「${DISCLOSURE_LABELS[key]}」の開示を見送りました`);
+                      toast(`「${DISCLOSURE_LABELS[key]}」の公開を見送りました`);
                     }}
                   >
                     見送る
@@ -377,10 +379,12 @@ export default function MyPage() {
                 <NotebookPen className="size-4 text-chart-2" />
                 振り返りの記録
               </CardTitle>
-              <CardDescription>クリックすると、AIとのチャット内容の要約が見られます</CardDescription>
+              <CardDescription>
+                記録のある週をクリックすると、AIとのチャット内容の要約が見られます
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <ReflectionList reflections={currentUser.reflections} />
+              <ReflectionCalendar reflections={currentUser.reflections} />
               <Button asChild variant="ghost" size="sm" className="w-full rounded-full">
                 <Link href="/chat">
                   <MessageSquare className="size-4" />
@@ -404,7 +408,7 @@ export default function MyPage() {
                 上司に見せている情報
               </CardTitle>
               <CardDescription>
-                開示した情報は、いつでもロックに戻せます。
+                公開した情報は、いつでも非公開に戻せます。
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -431,12 +435,12 @@ export default function MyPage() {
                         variant="outline"
                         className="shrink-0 rounded-full"
                         onClick={() => {
-                          relockDisclosure(currentUser.id, key);
-                          toast.success(`「${DISCLOSURE_LABELS[key]}」をロックしました`);
+                          setLockKey(key);
+                          setLockReason(LOCK_REASONS[0]);
                         }}
                       >
                         <Lock className="size-3.5" />
-                        ロックする
+                        非公開にする
                       </Button>
                     ) : state === "requested" ? (
                       <Badge variant="secondary" className="shrink-0">
@@ -444,7 +448,7 @@ export default function MyPage() {
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="shrink-0">
-                        未開示
+                        非公開
                       </Badge>
                     )}
                   </div>
@@ -559,6 +563,80 @@ export default function MyPage() {
                 }}
               >
                 キャンセルして代わりをもらう
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 開示の確認モーダル */}
+        <Dialog open={!!approveKey} onOpenChange={(o) => !o && setApproveKey(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>情報を公開しますか？</DialogTitle>
+              <DialogDescription>
+                「{approveKey ? DISCLOSURE_LABELS[approveKey] : ""}
+                」を公開すると、上司（{MANAGER_NAME}さん）が閲覧できるようになります。公開した情報は、いつでも非公開に戻せます。
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setApproveKey(null)}>
+                キャンセル
+              </Button>
+              <Button
+                onClick={() => {
+                  if (approveKey) {
+                    respondDisclosure(currentUser.id, approveKey, true);
+                    toast.success(`「${DISCLOSURE_LABELS[approveKey]}」を公開しました`);
+                  }
+                  setApproveKey(null);
+                }}
+              >
+                公開する
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ロックの確認モーダル（理由つき） */}
+        <Dialog open={!!lockKey} onOpenChange={(o) => !o && setLockKey(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>情報を非公開に戻しますか？</DialogTitle>
+              <DialogDescription>
+                「{lockKey ? DISCLOSURE_LABELS[lockKey] : ""}
+                」を非公開に戻します。選んだ理由は上司（{MANAGER_NAME}さん）に通知されます。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label>理由</Label>
+              <Select value={lockReason} onValueChange={setLockReason}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LOCK_REASONS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setLockKey(null)}>
+                キャンセル
+              </Button>
+              <Button
+                onClick={() => {
+                  if (lockKey) {
+                    relockDisclosure(currentUser.id, lockKey, lockReason);
+                    toast.success(`「${DISCLOSURE_LABELS[lockKey]}」を非公開にしました`);
+                  }
+                  setLockKey(null);
+                }}
+              >
+                <Lock className="size-3.5" />
+                非公開にする
               </Button>
             </DialogFooter>
           </DialogContent>

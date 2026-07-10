@@ -13,10 +13,12 @@ import {
   ACCOUNTS,
   CURRENT_USER_ID,
   REPLACEMENT_ACTIONS,
+  MANAGER_NOTICES,
   type Member,
   type Role,
   type Account,
   type DisclosureKey,
+  type ManagerNotice,
 } from "@/lib/data";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -38,8 +40,11 @@ type AppState = {
   cancelAction: (memberId: string, actionId: string, reason: string, note?: string) => void;
   requestDisclosure: (memberId: string, key: DisclosureKey) => void;
   respondDisclosure: (memberId: string, key: DisclosureKey, approve: boolean) => void;
-  /** 開示済みの情報をメンバー自身が再ロックする */
-  relockDisclosure: (memberId: string, key: DisclosureKey) => void;
+  /** 開示済みの情報をメンバー自身が再ロックする（理由は上司に通知される） */
+  relockDisclosure: (memberId: string, key: DisclosureKey, reason?: string) => void;
+  /** 上司向け通知（メンバーのロック操作など） */
+  managerNotices: ManagerNotice[];
+  dismissManagerNotice: (id: string) => void;
   /** 目標が変わった直後に「開示情報をロックしますか？」を出すフラグ */
   goalChangePrompt: boolean;
   resolveGoalChangePrompt: (lockAll: boolean) => void;
@@ -56,6 +61,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<Member[]>(MEMBERS);
   const [accounts, setAccounts] = useState<Account[]>(ACCOUNTS);
   const [goalChangePrompt, setGoalChangePrompt] = useState(false);
+  const [managerNotices, setManagerNotices] = useState<ManagerNotice[]>(MANAGER_NOTICES);
 
   useEffect(() => {
     setOnboarded(localStorage.getItem("css-proto-onboarded") === "1");
@@ -198,36 +204,79 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const relockDisclosure = useCallback((memberId: string, key: DisclosureKey) => {
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.id === memberId && m.disclosure[key] === "approved"
-          ? { ...m, disclosure: { ...m.disclosure, [key]: "locked" } }
-          : m,
-      ),
-    );
-  }, []);
-
-  const resolveGoalChangePrompt = useCallback((lockAll: boolean) => {
-    if (lockAll) {
+  const relockDisclosure = useCallback(
+    (memberId: string, key: DisclosureKey, reason?: string) => {
+      const target = members.find((m) => m.id === memberId);
+      if (!target || target.disclosure[key] !== "approved") return;
       setMembers((prev) =>
         prev.map((m) =>
-          m.id === CURRENT_USER_ID
-            ? {
-                ...m,
-                disclosure: Object.fromEntries(
-                  Object.entries(m.disclosure).map(([k, v]) => [
-                    k,
-                    v === "approved" ? "locked" : v,
-                  ]),
-                ) as Member["disclosure"],
-              }
+          m.id === memberId
+            ? { ...m, disclosure: { ...m.disclosure, [key]: "locked" } }
             : m,
         ),
       );
-    }
-    setGoalChangePrompt(false);
+      // 上司へ理由付きで通知
+      setManagerNotices((prev) => [
+        {
+          id: `n-${Date.now()}-${key}`,
+          memberId,
+          memberName: target.name,
+          key,
+          reason,
+          at: today(),
+        },
+        ...prev,
+      ]);
+    },
+    [members],
+  );
+
+  const dismissManagerNotice = useCallback((id: string) => {
+    setManagerNotices((prev) => prev.filter((n) => n.id !== id));
   }, []);
+
+  const resolveGoalChangePrompt = useCallback(
+    (lockAll: boolean) => {
+      if (lockAll) {
+        const me = members.find((m) => m.id === CURRENT_USER_ID);
+        const approvedKeys = me
+          ? (Object.keys(me.disclosure) as DisclosureKey[]).filter(
+              (k) => me.disclosure[k] === "approved",
+            )
+          : [];
+        setMembers((prev) =>
+          prev.map((m) =>
+            m.id === CURRENT_USER_ID
+              ? {
+                  ...m,
+                  disclosure: Object.fromEntries(
+                    Object.entries(m.disclosure).map(([k, v]) => [
+                      k,
+                      v === "approved" ? "locked" : v,
+                    ]),
+                  ) as Member["disclosure"],
+                }
+              : m,
+          ),
+        );
+        if (me && approvedKeys.length > 0) {
+          setManagerNotices((prev) => [
+            ...approvedKeys.map((k) => ({
+              id: `n-${Date.now()}-${k}`,
+              memberId: me.id,
+              memberName: me.name,
+              key: k,
+              reason: "目標を変更したため",
+              at: today(),
+            })),
+            ...prev,
+          ]);
+        }
+      }
+      setGoalChangePrompt(false);
+    },
+    [members],
+  );
 
   const currentUser = members.find((m) => m.id === CURRENT_USER_ID)!;
 
@@ -250,6 +299,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         requestDisclosure,
         respondDisclosure,
         relockDisclosure,
+        managerNotices,
+        dismissManagerNotice,
         goalChangePrompt,
         resolveGoalChangePrompt,
         accounts,

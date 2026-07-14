@@ -3,12 +3,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { useApp } from "@/lib/store";
-import {
-  DISCLOSURE_LABELS,
-  RELATIONSHIP_LEVELS,
-  type DisclosureKey,
-  type Member,
-} from "@/lib/data";
+import { DISCLOSURE_LABELS, type DisclosureKey, type Member } from "@/lib/data";
 import {
   Card,
   CardContent,
@@ -18,14 +13,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Eye, Hourglass, ChevronRight, Heart, Bell, Lock, X } from "lucide-react";
-import { toast } from "sonner";
-
-function approvedCount(m: Member) {
-  return Object.values(m.disclosure).filter((s) => s === "approved").length;
-}
+import { ChevronRight, Bell, Lock, X } from "lucide-react";
 
 function DisclosureRow({
   member,
@@ -38,42 +27,21 @@ function DisclosureRow({
   label: string;
   value: React.ReactNode;
 }) {
-  const { requestDisclosure } = useApp();
-  const state = member.disclosure[dkey];
+  const published = member.disclosure[dkey] === "approved";
 
   return (
     <div className="flex items-start justify-between gap-2 rounded-xl border bg-background p-2.5">
       <div className="min-w-0 flex-1">
         <p className="text-xs text-muted-foreground">{label}</p>
-        {state === "approved" ? (
+        {published ? (
           <div className="mt-0.5 text-sm">{value}</div>
         ) : (
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground">
+            <Lock className="size-3.5" />
             非公開
           </p>
         )}
       </div>
-      {state === "locked" && (
-        <Button
-          size="sm"
-          variant="secondary"
-          className="shrink-0 rounded-full"
-          onClick={(e) => {
-            e.preventDefault();
-            requestDisclosure(member.id, dkey);
-            toast.success(`${member.name}さんに「みたい」を送りました`);
-          }}
-        >
-          <Eye className="size-3.5" />
-          みたい
-        </Button>
-      )}
-      {state === "requested" && (
-        <Badge variant="secondary" className="shrink-0">
-          <Hourglass className="size-3" />
-          承認待ち
-        </Badge>
-      )}
     </div>
   );
 }
@@ -87,7 +55,7 @@ export default function MembersPage() {
         <div>
           <h1 className="text-xl font-bold">メンバー</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            目標やアクションは、本人の承認のもとで公開されます。気になるメンバーには「みたい」を送ってリクエストしましょう。
+            メンバーが公開した目標やアクションを確認できます。公開範囲は各メンバーが設定します。
           </p>
         </div>
 
@@ -136,9 +104,6 @@ export default function MembersPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           {members.map((m) => {
-            const unlocked = approvedCount(m);
-            const percent = Math.round((unlocked / 3) * 100);
-            const rel = RELATIONSHIP_LEVELS[unlocked];
             const currentAction = m.currentActions.find((a) => !a.done);
             return (
               <Card key={m.id} className="transition-shadow hover:shadow-md">
@@ -158,16 +123,6 @@ export default function MembersPage() {
                         {m.department} ・ {m.title}
                       </CardDescription>
                     </div>
-                  </div>
-                  <div className="mt-2">
-                    <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1 font-medium text-muted-foreground">
-                        <Heart className="size-3.5 text-chart-1" />
-                        関係値：{rel.label}
-                      </span>
-                      <span className="font-semibold text-foreground">{percent}%</span>
-                    </div>
-                    <Progress value={percent} className="h-2" />
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">

@@ -9,6 +9,8 @@ export type WeeklyAction = {
   done: boolean;
   /** アクションが継続している週数（4以上で深掘り通知の対象） */
   carriedWeeks: number;
+  /** このアクションが高めるCSA項目（CSA_ITEMSのname） */
+  csaKeys: string[];
 };
 
 export type PastAction = {
@@ -32,6 +34,18 @@ export type Reflection = {
     insights: string[];
     nextSteps: string[];
   };
+};
+
+/** AIから見た人物像（デジタルツイン）。会話や活動が増えるほど解像度が上がる想定 */
+export type TwinInsight = {
+  headline: string;            // 一言キャッチ
+  portrait: string;            // AIから見た人物像（プロフィール文）
+  tags: string[];              // キーワード
+  hiddenQuestions: string[];   // まだ言語化できていない問い（チャット誘導）
+  /** ナビが提示する、いま強化中のCSA項目（CSA_ITEMSのname） */
+  focusCsa: string[];
+  /** ナビが提示する、課題に感じているCSA項目 */
+  challengeCsa: string[];
 };
 
 export type GoalEntry = {
@@ -114,6 +128,9 @@ export const JP_HOLIDAYS_2026: Record<string, string> = {
   "2026-11-23": "勤労感謝の日",
 };
 
+/** AIマスコットの名前（暫定・汎用。あとで正式名称に差し替え可） */
+export const MASCOT_NAME = "ナビ";
+
 /** デモ上の上司（「みたい」を送ってくる人） */
 export const MANAGER_NAME = "佐藤 拓也";
 
@@ -166,14 +183,89 @@ export type Member = {
   goalHistory: GoalEntry[];
   /** キャンセルしたアクション（理由付き） */
   cancelledActions: CancelledAction[];
+  /** AIから見た人物像（デジタルツイン） */
+  twin: TwinInsight;
   disclosure: Record<DisclosureKey, DisclosureState>;
 };
+
+/** デジタルツインの解像度（0-100）。会話・振り返り・アクションが増えるほど上がる */
+export function buildTwinResolution(m: Member): number {
+  let r = 8; // 初回設定済み
+  r += 15; // TA受検済み
+  r += Math.min(25, m.usage.chatCount * 0.35);
+  r += Math.min(15, m.reflections.length * 4);
+  r += Math.min(15, m.usage.achievedActions * 0.5);
+  return Math.round(Math.min(100, r));
+}
+
+/** 解像度の段階レベル（%表記の代わりに、輪郭がくっきりしていく比喩で表す） */
+export const TWIN_RESOLUTION_LEVELS = [
+  { label: "ぼんやり", note: "まだ輪郭はうっすら。話すほど見えてきます" },
+  { label: "うっすら", note: "少しずつ人物像が浮かびはじめています" },
+  { label: "くっきり", note: "あなたらしさがしっかり見えてきました" },
+  { label: "鮮明", note: "解像度はかなり高い状態。細部まで見えています" },
+] as const;
+
+/** 解像度(0-100) → 段階インデックス(0-3) と 総ドット数のうち点灯数 */
+export function twinResolutionLevel(resolution: number) {
+  const totalDots = 5;
+  const litDots = Math.max(1, Math.round((resolution / 100) * totalDots));
+  const levelIndex = Math.min(
+    TWIN_RESOLUTION_LEVELS.length - 1,
+    Math.floor((resolution / 100) * TWIN_RESOLUTION_LEVELS.length),
+  );
+  return { levelIndex, level: TWIN_RESOLUTION_LEVELS[levelIndex], litDots, totalDots };
+}
 
 export const DISCLOSURE_LABELS: Record<DisclosureKey, string> = {
   goal: "目標",
   pastActions: "達成したアクション（過去の実績）",
   currentActions: "現在チャレンジ中のアクション",
 };
+
+/** CSA（エン標準）の評価項目。AIカスタマイズのベース。変更不可 */
+export type CsaItem = { name: string; definition: string };
+
+export const CSA_ITEMS: CsaItem[] = [
+  { name: "自己変革性", definition: "自己の現状に満足せず、学習や研鑽に努め、自分自身の改善、革新に挑戦している" },
+  { name: "目標必達性", definition: "常にチャレンジングな目標を掲げ、達成に強く執着している" },
+  { name: "多様受容性", definition: "固定観念にとらわれず、他者の言動・価値観、様々な文化・思想・理論などに関心を持ち、柔軟に取り入れている" },
+  { name: "周辺変革性", definition: "所属部門・会社全体、クライアントの改善、革新に主体的に挑戦している" },
+  { name: "主観正義性", definition: "未だ社会的に疑問視されていない事象を主観的に問題と捉え、自分なりの主義主張を発信している" },
+  { name: "自発利他性", definition: "利己と利他との葛藤の中で、他者の幸せや社会の利益を意識的に優先している" },
+  { name: "Enjoy-Thinking", definition: "仕事を、前向きにとらえ、面白くしたり、楽しむ工夫をしている" },
+  { name: "好感演出力", definition: "相手の受け取る「感じのよさ」を意識し、挨拶・笑顔・身だしなみ、コミュニケーションのとり方などを工夫している" },
+  { name: "キモチ伝達力", definition: "相手に自分のことを理解してもらうために、相手の言動に対して感じた自分の喜びや悲しみを、能動的に、率直にそのまま伝えている（良し悪しではなく、できるだけ早く）" },
+  { name: "対人傾聴力", definition: "相手を理解するために、受容的・共感的な態度で、相手の話に積極的に耳を傾けている" },
+  { name: "他者活用力", definition: "社内外の組織や個人に、気持ち良く協力してもらえるよう働きかけ、結果と感謝を伝えている" },
+  { name: "対人大善力", definition: "相手の成長や発展のために、その時は嫌われても、軋轢をおそれず、率直に、指摘や進言をしている（部下・同僚・上司・クライアントを問わず）" },
+  { name: "発想研磨力", definition: "多様な分野・事象・最新テクノロジーに対して意識的に興味・関心を持ち、インプットを行い、自社・クライアントの仕事に置き換えてアイデアを意図的に多発している（なるほど、これ面白い！ヒントを得た！）" },
+  { name: "問題発見力", definition: "社内外の商品・サービス・システムや現状のあたりまえに疑問を持ち、問題点を見つけ出している（これおかしい！）" },
+  { name: "改善アイデア発案力", definition: "社内外の商品・サービス・システムや現状に対して、改善案を考え出している（こう直したらいいな！）" },
+  { name: "新規アイデア創案力", definition: "社内外の商品・サービス・システムや現状に対して、他分野からの置き換えや、組み合わせなどによって、今までにない新しいアイデアを考え出している（こんなのあったらいいな！）" },
+  { name: "問題分析力", definition: "問題を定性的・定量的に分析・整理し、解決すべき課題を抽出している。さらに優先順位をつけている" },
+  { name: "仮説検証力", definition: "立案された仮説（仮の答え）を実行に移し、有効性を検証している" },
+  { name: "一般化力", definition: "自分の持つ知識・経験・ノウハウを、特殊性を除き、他人も使えるように周りに共有している" },
+  { name: "論理的表現力", definition: "相手が納得できるように、口頭や文章などで、結論・理由・根拠の順に筋道を立てて説明している" },
+  { name: "意志決定支援力", definition: "役員や事業部長に、現場情報や課題に関する報告・相談・提案をすばやく能動的に行い、決定権者の思考力・判断力を高め、間違った決断をさせない支援をしている（TL・メンバーは日報などで）" },
+  { name: "理念共創力", definition: "理念（バリュー・パーパス・ビジョン、事業・行動ガイドライン等）を共に創り上げるために、疑問があれば投げかけ、時には改善案を出している" },
+  { name: "理念伝導力", definition: "理念（バリュー・パーパス・ビジョン、事業・行動ガイドライン等）を、信念を持って、周りに伝え広めている" },
+  { name: "人財マネジメント力", definition: "部下の性格・考え方・能力や個別事情を把握し、P（目標達成機能）とM（動機づけ機能）の双方を発揮して、効果的な部下育成と組織運営を行なっている" },
+  { name: "組織標準化力", definition: "個々のノウハウを一般化させ、誰でもイチ早く成果があがる仕組化・マニュアル化を図り、実行と改善を繰り返している（論理力）" },
+  { name: "組織目標推進力", definition: "組織目標を明確にし、その達成の為に、社内外の経営資源（人・物・金・時間・情報・知的財産）を戦略的に活用しマネジメントをしている" },
+  { name: "新規事業創出力", definition: "事業バリューに沿った新しい商品・サービス・システムを考え出し、事業化・組織化を行なっている（発想力＋論理力）" },
+];
+
+/** CSA項目名 → 定義 を引く（タグのポップオーバー用） */
+export function csaDefinition(name: string): string | undefined {
+  return CSA_ITEMS.find((i) => i.name === name)?.definition;
+}
+
+/** 自社設定の初期サンプル項目（キャリアパスのように追加していける） */
+export const DEFAULT_COMPANY_ITEMS: CsaItem[] = [
+  { name: "顧客起点力", definition: "自社の都合ではなく、顧客の成功を起点に判断・行動している" },
+  { name: "スピード実行力", definition: "完璧を待たず、まず小さく試して素早く改善を回している" },
+];
 
 export const CAREER_PATHS = [
   "マネジメント（チームリーダー→マネージャー）",
@@ -242,9 +334,9 @@ export const MEMBERS: Member[] = [
       { title: "リーダーシップ研修（社内）を受講", completedAt: "2026-05-22" },
     ],
     currentActions: [
-      { id: "a1", title: "後輩の商談に同席してフィードバックを渡す", done: true, carriedWeeks: 1 },
-      { id: "a2", title: "チームの週次数値レポートを自分がまとめて共有する", done: false, carriedWeeks: 1 },
-      { id: "a3", title: "上司にリーダー登用の要件をヒアリングする", done: false, carriedWeeks: 4 },
+      { id: "a1", title: "後輩の商談に同席してフィードバックを渡す", done: true, carriedWeeks: 1, csaKeys: ["対人大善力", "人財マネジメント力"] },
+      { id: "a2", title: "チームの週次数値レポートを自分がまとめて共有する", done: false, carriedWeeks: 1, csaKeys: ["組織標準化力", "論理的表現力"] },
+      { id: "a3", title: "上司にリーダー登用の要件をヒアリングする", done: false, carriedWeeks: 4, csaKeys: ["意志決定支援力", "キモチ伝達力"] },
     ],
     reflections: [
       {
@@ -331,7 +423,20 @@ export const MEMBERS: Member[] = [
         cancelledAt: "2026-06-10",
       },
     ],
-    disclosure: { goal: "locked", pastActions: "locked", currentActions: "locked" },
+    twin: {
+      headline: "動きながら考える、推進役",
+      focusCsa: ["人財マネジメント力", "対人大善力"],
+      challengeCsa: ["論理的表現力", "意志決定支援力"],
+      portrait:
+        "目標が定まると迷わず動き出せる行動派。会話の端々に「まず自分がやってみせる」という当事者意識がにじみます。周囲を巻き込む力を持つ一方で、負荷が高い場面では抱え込みがちな一面も。最近の振り返りからは、「引っ張る」だけでなく「任せて育てる」ことへの関心が芽生えはじめているのが見てとれます。",
+      tags: ["推進力", "当事者意識", "巻き込み上手", "抱え込みやすい", "まとめ役への関心"],
+      hiddenQuestions: [
+        "プレッシャーがかかる場面で、本当はどう感じている？",
+        "「任せる」ことに、どんな不安がある？",
+        "3年後、どんなチームをつくっていたい？",
+      ],
+    },
+    disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
   },
   {
     id: "m2",
@@ -387,9 +492,9 @@ export const MEMBERS: Member[] = [
       { title: "提案書レビュー会を立ち上げ", completedAt: "2026-06-12" },
     ],
     currentActions: [
-      { id: "a1", title: "大型案件の提案書を先輩とペアで作成する", done: true, carriedWeeks: 1 },
-      { id: "a2", title: "競合3社のサービス比較をまとめる", done: true, carriedWeeks: 1 },
-      { id: "a3", title: "社外セミナーに1回参加する", done: false, carriedWeeks: 2 },
+      { id: "a1", title: "大型案件の提案書を先輩とペアで作成する", done: true, carriedWeeks: 1, csaKeys: ["論理的表現力", "問題分析力"] },
+      { id: "a2", title: "競合3社のサービス比較をまとめる", done: true, carriedWeeks: 1, csaKeys: ["問題分析力", "発想研磨力"] },
+      { id: "a3", title: "社外セミナーに1回参加する", done: false, carriedWeeks: 2, csaKeys: ["自己変革性", "発想研磨力"] },
     ],
     reflections: [
       {
@@ -437,6 +542,18 @@ export const MEMBERS: Member[] = [
       { goal: "採用領域の専門性を高め、社内で一番の提案品質を持つスペシャリストになる", careerPath: "スペシャリスト（専門性を極める）", setAt: "2026-04-06" },
     ],
     cancelledActions: [],
+    twin: {
+      headline: "深く掘り下げる、探究者",
+      focusCsa: ["問題分析力", "発想研磨力"],
+      challengeCsa: ["キモチ伝達力", "自己変革性"],
+      portrait:
+        "事実とデータを丁寧に確かめながら、納得できるまで考え抜くタイプ。提案の質へのこだわりが会話からも伝わってきます。専門性を軸にキャリアを描きつつ、周囲への気配りも自然にできる方です。",
+      tags: ["探究心", "分析力", "品質へのこだわり", "気配り"],
+      hiddenQuestions: [
+        "スピードと質、本当はどちらに心が動く？",
+        "専門性を、この先どこまで尖らせたい？",
+      ],
+    },
     disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
   },
   {
@@ -490,9 +607,9 @@ export const MEMBERS: Member[] = [
     usage: { loginDays: 18, chatCount: 9, chatPerWeek: 0.8, achievedActions: 6 },
     pastActions: [{ title: "既存顧客10社への定期訪問を完了", completedAt: "2026-05-29" }],
     currentActions: [
-      { id: "a1", title: "週1回、先輩に商談ロープレを依頼する", done: false, carriedWeeks: 5 },
-      { id: "a2", title: "顧客への提案数を週3件にする", done: false, carriedWeeks: 5 },
-      { id: "a3", title: "業務の振り返りを毎週金曜に書く", done: true, carriedWeeks: 1 },
+      { id: "a1", title: "週1回、先輩に商談ロープレを依頼する", done: false, carriedWeeks: 5, csaKeys: ["自己変革性", "他者活用力"] },
+      { id: "a2", title: "顧客への提案数を週3件にする", done: false, carriedWeeks: 5, csaKeys: ["目標必達性", "改善アイデア発案力"] },
+      { id: "a3", title: "業務の振り返りを毎週金曜に書く", done: true, carriedWeeks: 1, csaKeys: ["自己変革性", "問題発見力"] },
     ],
     reflections: [
       {
@@ -521,7 +638,20 @@ export const MEMBERS: Member[] = [
       { goal: "まず担当顧客20社で信頼される担当者になり、その後PM職に挑戦する", careerPath: "プロジェクトマネージャー", setAt: "2026-04-13" },
     ],
     cancelledActions: [],
-    disclosure: { goal: "approved", pastActions: "locked", currentActions: "requested" },
+    twin: {
+      headline: "そっと支える、伴走者",
+      focusCsa: ["自己変革性", "対人傾聴力"],
+      challengeCsa: ["目標必達性", "意志決定支援力"],
+      portrait:
+        "まわりの状況をよく見て、配慮しながら支えるタイプ。まだ会話が少なく輪郭はこれからですが、コツコツ続ける誠実さが見えはじめています。もっと話すほど、あなたらしさが浮かび上がります。",
+      tags: ["配慮", "誠実さ", "継続力"],
+      hiddenQuestions: [
+        "自分から動くとき、何が背中を押す？",
+        "これまでで一番、力を発揮できたのはどんな場面？",
+        "苦手だと感じるのはどんなとき？",
+      ],
+    },
+    disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
   },
   {
     id: "m4",
@@ -577,9 +707,9 @@ export const MEMBERS: Member[] = [
       { title: "社内の若手企画コミュニティを発足", completedAt: "2026-04-17" },
     ],
     currentActions: [
-      { id: "a1", title: "事業計画の収支シミュレーションを作る", done: false, carriedWeeks: 1 },
-      { id: "a2", title: "想定ユーザー5名にヒアリングする", done: true, carriedWeeks: 1 },
-      { id: "a3", title: "メンターに壁打ちを依頼する", done: true, carriedWeeks: 1 },
+      { id: "a1", title: "事業計画の収支シミュレーションを作る", done: false, carriedWeeks: 1, csaKeys: ["問題分析力", "仮説検証力"] },
+      { id: "a2", title: "想定ユーザー5名にヒアリングする", done: true, carriedWeeks: 1, csaKeys: ["問題発見力", "対人傾聴力"] },
+      { id: "a3", title: "メンターに壁打ちを依頼する", done: true, carriedWeeks: 1, csaKeys: ["他者活用力", "仮説検証力"] },
     ],
     reflections: [
       {
@@ -627,7 +757,19 @@ export const MEMBERS: Member[] = [
       { goal: "新規事業コンテストで企画を通し、事業開発チームへ異動する", careerPath: "新規事業・企画職", setAt: "2026-04-06" },
     ],
     cancelledActions: [],
-    disclosure: { goal: "requested", pastActions: "locked", currentActions: "locked" },
+    twin: {
+      headline: "旗を立てて導く、開拓リーダー",
+      focusCsa: ["新規アイデア創案力", "問題発見力"],
+      challengeCsa: ["組織標準化力", "一般化力"],
+      portrait:
+        "要点を素早くつかんで方向を示せるタイプ。新しいものを生み出す熱量が高く、行動も早い。一方で、生み出した後の「続ける仕組み」づくりには関心が向きにくい傾向も見えます。",
+      tags: ["決断力", "発想力", "行動力", "熱量", "仕組み化は苦手"],
+      hiddenQuestions: [
+        "立ち上げたあと、誰と組むとうまく回る？",
+        "熱が冷めてしまうのは、どんなとき？",
+      ],
+    },
+    disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
   },
   {
     id: "m5",
@@ -680,9 +822,9 @@ export const MEMBERS: Member[] = [
     usage: { loginDays: 30, chatCount: 15, chatPerWeek: 1.2, achievedActions: 12 },
     pastActions: [{ title: "財務3表の基礎講座を修了", completedAt: "2026-06-01" }],
     currentActions: [
-      { id: "a1", title: "担当顧客の中期経営計画を読み込み論点を出す", done: false, carriedWeeks: 2 },
-      { id: "a2", title: "経営層との商談に月2回同席する", done: false, carriedWeeks: 2 },
-      { id: "a3", title: "提案の型を1つ資料化する", done: true, carriedWeeks: 1 },
+      { id: "a1", title: "担当顧客の中期経営計画を読み込み論点を出す", done: false, carriedWeeks: 2, csaKeys: ["問題発見力", "問題分析力"] },
+      { id: "a2", title: "経営層との商談に月2回同席する", done: false, carriedWeeks: 2, csaKeys: ["意志決定支援力", "好感演出力"] },
+      { id: "a3", title: "提案の型を1つ資料化する", done: true, carriedWeeks: 1, csaKeys: ["組織標準化力", "一般化力"] },
     ],
     reflections: [
       {
@@ -711,11 +853,28 @@ export const MEMBERS: Member[] = [
       { goal: "顧客の経営課題に踏み込める提案型コンサルタントに転身する", careerPath: "コンサルタント・顧客折衝のプロ", setAt: "2026-05-11" },
     ],
     cancelledActions: [],
-    disclosure: { goal: "locked", pastActions: "locked", currentActions: "locked" },
+    twin: {
+      headline: "堅実に守り抜く、安定の要",
+      focusCsa: ["論理的表現力", "意志決定支援力"],
+      challengeCsa: ["自己変革性", "周辺変革性"],
+      portrait:
+        "事実を確かめながら着実に進める安定型。長期的な信頼関係を築く力があります。新しい挑戦には慎重で、一歩を踏み出すきっかけを探している様子も見えます。",
+      tags: ["安定感", "信頼構築", "慎重さ", "論理的"],
+      hiddenQuestions: [
+        "挑戦をためらうとき、何が引っかかっている？",
+        "本当に守りたいものは何？",
+      ],
+    },
+    disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
   },
 ];
 
 export type AccountStatus = "active" | "invited" | "suspended";
+
+/** 管理者がつける5段階の直近評価 */
+export type Rating = "S" | "A" | "B" | "C" | "D";
+
+export const RATINGS: Rating[] = ["S", "A", "B", "C", "D"];
 
 export type Account = {
   id: string;
@@ -727,20 +886,24 @@ export type Account = {
   status: AccountStatus;
   /** 紐づく上司のアカウントID（メンバー権限を持つ場合のみ） */
   managerId?: string;
+  /** 直近の評価（管理者が設定）。未設定なら未評価 */
+  rating?: Rating;
+  /** プロフィール画像URL。未設定ならイニシャルのフォールバック表示 */
+  avatarUrl?: string;
 };
 
 export const ACCOUNTS: Account[] = [
-  { id: "u1", name: "田中 悠人", email: "tanaka@example.co.jp", roles: ["member"], department: "営業第一部", status: "active", managerId: "u6" },
-  { id: "u2", name: "佐藤 美咲", email: "sato@example.co.jp", roles: ["member"], department: "営業第一部", status: "active", managerId: "u6" },
-  { id: "u3", name: "鈴木 大輝", email: "suzuki@example.co.jp", roles: ["member"], department: "営業第二部", status: "active", managerId: "u6" },
-  { id: "u4", name: "高橋 結衣", email: "takahashi@example.co.jp", roles: ["member"], department: "営業第二部", status: "active", managerId: "u6" },
-  { id: "u5", name: "伊藤 健", email: "ito@example.co.jp", roles: ["member"], department: "営業第一部", status: "active", managerId: "u6" },
+  { id: "u1", name: "田中 悠人", email: "tanaka@example.co.jp", roles: ["member"], department: "営業第一部", status: "active", managerId: "u6", rating: "A" },
+  { id: "u2", name: "佐藤 美咲", email: "sato@example.co.jp", roles: ["member"], department: "営業第一部", status: "active", managerId: "u6", rating: "S" },
+  { id: "u3", name: "鈴木 大輝", email: "suzuki@example.co.jp", roles: ["member"], department: "営業第二部", status: "active", managerId: "u6", rating: "C" },
+  { id: "u4", name: "高橋 結衣", email: "takahashi@example.co.jp", roles: ["member"], department: "営業第二部", status: "active", managerId: "u6", rating: "A" },
+  { id: "u5", name: "伊藤 健", email: "ito@example.co.jp", roles: ["member"], department: "営業第一部", status: "active", managerId: "u6", rating: "B" },
   { id: "u6", name: "佐藤 拓也", email: "sato.takuya@example.co.jp", roles: ["manager", "admin"], department: "営業第一部", status: "active" },
   { id: "u7", name: "管理 太郎", email: "admin@example.co.jp", roles: ["admin"], department: "人事部", status: "invited" },
   { id: "u8", name: "渡辺 直樹", email: "watanabe@example.co.jp", roles: ["manager"], department: "営業第二部", status: "active" },
-  { id: "u9", name: "小林 遥", email: "kobayashi@example.co.jp", roles: ["member"], department: "営業第二部", status: "active", managerId: "u8" },
-  { id: "u10", name: "加藤 翔太", email: "kato@example.co.jp", roles: ["member"], department: "営業第二部", status: "active", managerId: "u8" },
-  { id: "u11", name: "中村 由依", email: "nakamura@example.co.jp", roles: ["member"], department: "マーケティング部", status: "active", managerId: "u8" },
+  { id: "u9", name: "小林 遥", email: "kobayashi@example.co.jp", roles: ["member"], department: "営業第二部", status: "active", managerId: "u8", rating: "B" },
+  { id: "u10", name: "加藤 翔太", email: "kato@example.co.jp", roles: ["member"], department: "営業第二部", status: "active", managerId: "u8", rating: "D" },
+  { id: "u11", name: "中村 由依", email: "nakamura@example.co.jp", roles: ["member"], department: "マーケティング部", status: "active", managerId: "u8", rating: "A" },
   { id: "u12", name: "山口 健一", email: "yamaguchi@example.co.jp", roles: ["member"], department: "営業第一部", status: "invited", managerId: "u6" },
   { id: "u13", name: "松本 彩", email: "matsumoto@example.co.jp", roles: ["member"], department: "カスタマーサクセス部", status: "suspended" },
   { id: "u14", name: "井上 拓", email: "inoue@example.co.jp", roles: ["manager", "admin"], department: "マーケティング部", status: "active" },
@@ -767,3 +930,71 @@ export const RELATIONSHIP_LEVELS = [
   { level: 3, label: "信頼関係", note: "取り組みが見えています。具体的な支援ができる関係です" },
   { level: 4, label: "パートナー", note: "全情報が公開されています。伴走者として支援しましょう" },
 ];
+
+/**
+ * 管理者一覧で表示するアカウントの付加プロフィール。
+ * 実メンバー(m1〜m5)は実データを、それ以外は id から決定論的に生成したモック値を返す。
+ * 関係値は「今後追加予定のAIアバターとのサーベイ」の結果を想定したプレースホルダー。
+ */
+export type AccountProfile = {
+  /** ポジション意向（設定されているキャリアパス）。メンバー権限がない場合は undefined */
+  careerPath?: string;
+  /** アプリ利用状況（アクション達成数）。メンバー権限がない場合は undefined */
+  achievedActions?: number;
+  /** ログイン日数。メンバー権限がない場合は undefined */
+  loginDays?: number;
+  /** AIチャット利用回数。メンバー権限がない場合は undefined */
+  chatCount?: number;
+  /** 上司との関係値 0-100。上司が紐づく場合のみ */
+  managerRelationship?: number;
+  /** 部下との関係値 0-100。上司権限を持つ場合のみ */
+  reportRelationship?: number;
+};
+
+/** 文字列から決定論的な擬似乱数（0以上の整数）を得る */
+function seededInt(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/** seed から min〜max の範囲に収めたスコアを得る */
+function seededScore(seed: string, min: number, max: number): number {
+  return min + (seededInt(seed) % (max - min + 1));
+}
+
+export function getAccountProfile(account: Account): AccountProfile {
+  const member = MEMBERS.find((m) => m.name === account.name);
+  const isMember = account.roles.includes("member");
+  const isManager = account.roles.includes("manager");
+  return {
+    careerPath:
+      member?.careerPath ??
+      (isMember
+        ? CAREER_PATHS[seededInt(account.id) % CAREER_PATHS.length]
+        : undefined),
+    achievedActions:
+      member?.usage.achievedActions ??
+      (isMember ? seededScore(`${account.id}-act`, 2, 32) : undefined),
+    loginDays:
+      member?.usage.loginDays ??
+      (isMember ? seededScore(`${account.id}-login`, 5, 70) : undefined),
+    chatCount:
+      member?.usage.chatCount ??
+      (isMember ? seededScore(`${account.id}-chat`, 3, 80) : undefined),
+    managerRelationship: account.managerId
+      ? seededScore(`${account.id}-mgr`, 21, 96)
+      : undefined,
+    reportRelationship: isManager
+      ? seededScore(`${account.id}-rep`, 52, 96)
+      : undefined,
+  };
+}
+
+/** 関係値スコア(0-100)を4段階のやさしいラベルに変換 */
+export function relationshipLabel(score: number): string {
+  if (score >= 85) return "良好";
+  if (score >= 70) return "順調";
+  if (score >= 55) return "構築中";
+  return "これから";
+}

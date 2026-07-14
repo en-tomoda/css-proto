@@ -12,7 +12,7 @@ import { MessageSquare, Users, Settings, User, LogOut } from "lucide-react";
 import { EnLogo } from "@/components/en-logo";
 
 const NAV = [
-  { href: "/mypage", label: "マイページ", icon: User, roles: ["member", "manager"] },
+  { href: "/mypage", label: "マイキャリア", icon: User, roles: ["member", "manager"] },
   { href: "/chat", label: "AIチャット", icon: MessageSquare, roles: ["member", "manager"] },
   { href: "/members", label: "メンバー", icon: Users, roles: ["manager"] },
   { href: "/admin", label: "管理者設定", icon: Settings, roles: ["admin"] },
@@ -30,7 +30,14 @@ const ROLE_NAMES: Record<Role, string> = {
   admin: "管理 太郎",
 };
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  wide = false,
+}: {
+  children: ReactNode;
+  /** 管理者画面など、横幅を広く使いたい画面で true */
+  wide?: boolean;
+}) {
   const { role, logout } = useApp();
   const pathname = usePathname();
   const router = useRouter();
@@ -96,7 +103,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-3 py-5 sm:px-4 sm:py-6">{children}</main>
+      <main
+        className={cn(
+          "mx-auto px-3 py-5 sm:px-4 sm:py-6",
+          wide ? "max-w-[100rem]" : "max-w-6xl",
+        )}
+      >
+        {children}
+      </main>
     </div>
   );
 }

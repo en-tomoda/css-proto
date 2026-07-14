@@ -103,6 +103,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 title,
                 done: false,
                 carriedWeeks: 1,
+                csaKeys: [],
               })),
             }
           : m,
@@ -142,7 +143,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ...m,
             currentActions: [
               ...m.currentActions.filter((a) => a.id !== actionId),
-              { id: `r-${Date.now()}`, title: replacement, done: false, carriedWeeks: 1 },
+              { id: `r-${Date.now()}`, title: replacement, done: false, carriedWeeks: 1, csaKeys: [] },
             ],
             cancelledActions: [
               ...m.cancelledActions,

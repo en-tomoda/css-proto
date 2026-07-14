@@ -4,8 +4,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { DigitalTwinHero } from "@/components/digital-twin-hero";
 import { TaSection } from "@/components/ta-section";
 import { ReflectionCalendar } from "@/components/reflection-calendar";
+import { CsaTag } from "@/components/csa-tag";
 import { useApp } from "@/lib/store";
 import {
   CANCEL_REASONS,
@@ -55,7 +57,6 @@ import {
   Gift,
   CircleCheck,
   NotebookPen,
-  Eye,
   Pencil,
   X,
   ChevronDown,
@@ -75,7 +76,11 @@ export default function MyPage() {
     resolveGoalChangePrompt,
   } = useApp();
 
+  // 上部お知らせカードはAIアバターカードに集約したため現在は非表示。
+  // 将来再利用する可能性があるためコンポーネントは温存している。
+  const SHOW_TOP_NOTICES = false;
   const [noticesOpen, setNoticesOpen] = useState(true);
+  const [noticesModalOpen, setNoticesModalOpen] = useState(false);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [goalDraft, setGoalDraft] = useState("");
   const [pathDraft, setPathDraft] = useState("");
@@ -90,51 +95,15 @@ export default function MyPage() {
   const actions = currentUser.currentActions;
   const doneCount = actions.filter((a) => a.done).length;
   const stuckActions = actions.filter((a) => !a.done && a.carriedWeeks >= 4);
-  const pendingRequests = (
-    Object.keys(currentUser.disclosure) as DisclosureKey[]
-  ).filter((k) => currentUser.disclosure[k] === "requested");
   const approvedKeys = (
     Object.keys(currentUser.disclosure) as DisclosureKey[]
   ).filter((k) => currentUser.disclosure[k] === "approved");
 
-  const noticeCount =
-    (goalChangePrompt ? 1 : 0) + pendingRequests.length + stuckActions.length;
+  const noticeCount = (goalChangePrompt ? 1 : 0) + stuckActions.length;
 
-  return (
-    <AppShell>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold">マイページ</h1>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            おかえりなさい、{currentUser.name}さん。今週の目標とアクションを確認しましょう。
-          </p>
-        </div>
-
-        {/* お知らせ（簡易通知一覧） */}
-        <Card>
-          <CardHeader>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 text-left"
-              onClick={() => setNoticesOpen((o) => !o)}
-            >
-              <CardTitle className="flex flex-1 items-center gap-2 text-base">
-                <Bell className="size-4 text-primary" />
-                お知らせ
-                {noticeCount > 0 && (
-                  <Badge className="rounded-full px-2">{noticeCount}</Badge>
-                )}
-              </CardTitle>
-              <ChevronDown
-                className={cn(
-                  "size-4 text-muted-foreground transition-transform",
-                  noticesOpen && "rotate-180",
-                )}
-              />
-            </button>
-          </CardHeader>
-          {noticesOpen && (
-          <CardContent className="space-y-2">
+  // お知らせの中身（上部カードとAIアバターのモーダルで共用）
+  const noticesBody = (
+    <div className="space-y-2">
             {goalChangePrompt && (
               <div className="flex flex-col gap-2 rounded-xl border border-chart-4/60 bg-chart-4/5 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-2.5 text-sm">
@@ -187,42 +156,6 @@ export default function MyPage() {
               </div>
             )}
 
-            {pendingRequests.map((key) => (
-              <div
-                key={key}
-                className="flex flex-col gap-2 rounded-xl border border-primary/30 bg-primary/5 p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-2.5 text-sm">
-                  <Eye className="mt-0.5 size-4 shrink-0" />
-                  <p className="leading-relaxed">
-                    <span className="font-semibold">{MANAGER_NAME}さん（上司）</span>
-                    があなたの「{DISCLOSURE_LABELS[key]}」を
-                    <span className="font-semibold">『みたい』</span>
-                    と言っています
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2 pl-6 sm:pl-0">
-                  <Button
-                    size="sm"
-                    className="rounded-full"
-                    onClick={() => setApproveKey(key)}
-                  >
-                    公開する
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-full"
-                    onClick={() => {
-                      respondDisclosure(currentUser.id, key, false);
-                      toast(`「${DISCLOSURE_LABELS[key]}」の公開を見送りました`);
-                    }}
-                  >
-                    見送る
-                  </Button>
-                </div>
-              </div>
-            ))}
 
             {stuckActions.length > 0 && (
               <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -257,9 +190,55 @@ export default function MyPage() {
               <p className="flex-1">先週の振り返りを記録しました</p>
               <span className="text-xs">先週金曜</span>
             </div>
-          </CardContent>
+    </div>
+  );
+
+  return (
+    <AppShell>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-bold">マイキャリア</h1>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            今週の目標とアクションを確認しましょう。
+          </p>
+        </div>
+
+        {/* お知らせ（簡易通知一覧）: 現在は未使用。AIアバターカードのモーダルに集約 */}
+        {SHOW_TOP_NOTICES && (
+        <Card>
+          <CardHeader>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 text-left"
+              onClick={() => setNoticesOpen((o) => !o)}
+            >
+              <CardTitle className="flex flex-1 items-center gap-2 text-base">
+                <Bell className="size-4 text-primary" />
+                お知らせ
+                {noticeCount > 0 && (
+                  <Badge className="rounded-full px-2">{noticeCount}</Badge>
+                )}
+              </CardTitle>
+              <ChevronDown
+                className={cn(
+                  "size-4 text-muted-foreground transition-transform",
+                  noticesOpen && "rotate-180",
+                )}
+              />
+            </button>
+          </CardHeader>
+          {noticesOpen && (
+          <CardContent>{noticesBody}</CardContent>
           )}
         </Card>
+        )}
+
+        {/* 主役: AIから見たあなた（デジタルツイン） */}
+        <DigitalTwinHero
+          member={currentUser}
+          noticeCount={noticeCount}
+          onOpenNotices={() => setNoticesModalOpen(true)}
+        />
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="flex flex-col">
@@ -337,11 +316,16 @@ export default function MyPage() {
                     <p className={cn("text-sm font-medium", a.done && "text-muted-foreground line-through")}>
                       {a.title}
                     </p>
-                    {a.carriedWeeks > 1 && !a.done && (
-                      <Badge variant="outline" className="mt-1.5 text-xs">
-                        {a.carriedWeeks}週目・継続中
-                      </Badge>
-                    )}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {a.carriedWeeks > 1 && !a.done && (
+                        <Badge variant="outline" className="text-xs">
+                          {a.carriedWeeks}週目・継続中
+                        </Badge>
+                      )}
+                      {a.csaKeys.map((k) => (
+                        <CsaTag key={k} name={k} variant="focus" />
+                      ))}
+                    </div>
                   </div>
                   {!a.done && (
                     <Button
@@ -405,22 +389,22 @@ export default function MyPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <LockOpen className="size-4 text-chart-4" />
-                上司に見せている情報
+                上司への公開設定
               </CardTitle>
               <CardDescription>
-                公開した情報は、いつでも非公開に戻せます。
+                項目ごとに公開/非公開を切り替えられます。上司には公開した情報だけが見えます。
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {(Object.keys(DISCLOSURE_LABELS) as DisclosureKey[]).map((key) => {
-                const state = currentUser.disclosure[key];
+                const published = currentUser.disclosure[key] === "approved";
                 return (
                   <div
                     key={key}
                     className="flex items-center justify-between gap-2 rounded-xl border p-3"
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      {state === "approved" ? (
+                      {published ? (
                         <LockOpen className="size-4 shrink-0 text-primary" />
                       ) : (
                         <Lock className="size-4 shrink-0 text-muted-foreground" />
@@ -428,8 +412,14 @@ export default function MyPage() {
                       <span className="truncate text-sm font-medium">
                         {DISCLOSURE_LABELS[key]}
                       </span>
+                      <Badge
+                        variant={published ? "default" : "outline"}
+                        className="shrink-0"
+                      >
+                        {published ? "公開中" : "非公開"}
+                      </Badge>
                     </div>
-                    {state === "approved" ? (
+                    {published ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -442,14 +432,15 @@ export default function MyPage() {
                         <Lock className="size-3.5" />
                         非公開にする
                       </Button>
-                    ) : state === "requested" ? (
-                      <Badge variant="secondary" className="shrink-0">
-                        お返事待ち
-                      </Badge>
                     ) : (
-                      <Badge variant="outline" className="shrink-0">
-                        非公開
-                      </Badge>
+                      <Button
+                        size="sm"
+                        className="shrink-0 rounded-full"
+                        onClick={() => setApproveKey(key)}
+                      >
+                        <LockOpen className="size-3.5" />
+                        公開する
+                      </Button>
                     )}
                   </div>
                 );
@@ -459,6 +450,25 @@ export default function MyPage() {
         </div>
 
         <TaSection member={currentUser} />
+
+        {/* AIからのお知らせモーダル */}
+        <Dialog open={noticesModalOpen} onOpenChange={setNoticesModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Bell className="size-4 text-primary" />
+                AIからのお知らせ
+                {noticeCount > 0 && (
+                  <Badge className="rounded-full px-2">{noticeCount}</Badge>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                確認が必要なお知らせをまとめています。
+              </DialogDescription>
+            </DialogHeader>
+            {noticesBody}
+          </DialogContent>
+        </Dialog>
 
         {/* 目標編集ダイアログ */}
         <Dialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>

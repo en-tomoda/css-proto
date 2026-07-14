@@ -3,6 +3,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Radix は data-orientation / data-state を出力するため、shadcn コンポーネントが使う
+   data-horizontal / data-vertical / data-active の各バリアントを対応付ける
+   （Tabs の向き・選択状態、Separator / ScrollArea の向き依存スタイルを有効化） */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+@custom-variant data-active (&[data-state="active"]);
+
 :root {
   --radius: 0.625rem;
   --background: oklch(0.985 0.003 250);

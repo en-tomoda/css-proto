@@ -57,7 +57,7 @@ export default function HistoryPage() {
         <Button asChild variant="ghost" size="sm" className="rounded-full">
           <Link href="/mypage">
             <ArrowLeft className="size-4" />
-            マイページへ戻る
+            マイキャリアへ戻る
           </Link>
         </Button>
 

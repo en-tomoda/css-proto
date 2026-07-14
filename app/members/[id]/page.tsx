@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
@@ -9,7 +8,6 @@ import { TaSection } from "@/components/ta-section";
 import { useApp } from "@/lib/store";
 import {
   DISCLOSURE_LABELS,
-  RELATIONSHIP_LEVELS,
   type DisclosureKey,
   type Member,
 } from "@/lib/data";
@@ -22,7 +20,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -30,17 +27,11 @@ import {
   Bot,
   CalendarDays,
   CircleCheck,
-  Eye,
-  Heart,
-  Hourglass,
+  Lock,
   MessageSquare,
   Target,
   Trophy,
 } from "lucide-react";
-
-function approvedCount(m: Member) {
-  return Object.values(m.disclosure).filter((s) => s === "approved").length;
-}
 
 const HEATMAP_COLORS = [
   "bg-muted",
@@ -169,39 +160,19 @@ function buildAiSummary(m: Member) {
   return parts.join(" ");
 }
 
-function LockedCard({ member, dkey }: { member: Member; dkey: DisclosureKey }) {
-  const { requestDisclosure } = useApp();
-  const state = member.disclosure[dkey];
+function LockedCard({ dkey }: { dkey: DisclosureKey }) {
   return (
     <Card className="border-dashed bg-muted/30">
       <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
         <div className="flex size-12 items-center justify-center rounded-full bg-secondary">
-          <Eye className="size-5 text-secondary-foreground" />
+          <Lock className="size-5 text-secondary-foreground" />
         </div>
         <div>
           <p className="font-medium">{DISCLOSURE_LABELS[dkey]}は非公開です</p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            本人が公開を承認すると、ここに表示されます
+            本人が公開すると、ここに表示されます
           </p>
         </div>
-        {state === "locked" ? (
-          <Button
-            size="sm"
-            className="rounded-full"
-            onClick={() => {
-              requestDisclosure(member.id, dkey);
-              toast.success(`${member.name}さんに「みたい」を送りました`);
-            }}
-          >
-            <Eye className="size-4" />
-            みたい を送る
-          </Button>
-        ) : (
-          <Badge variant="secondary">
-            <Hourglass className="size-3" />
-            承認待ち
-          </Badge>
-        )}
       </CardContent>
     </Card>
   );
@@ -220,10 +191,6 @@ export default function MemberDetailPage() {
     );
   }
 
-  const unlocked = approvedCount(member);
-  const percent = Math.round((unlocked / 3) * 100);
-  const rel = RELATIONSHIP_LEVELS[unlocked];
-
   return (
     <AppShell>
       <div className="space-y-6">
@@ -234,34 +201,19 @@ export default function MemberDetailPage() {
           </Link>
         </Button>
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <Avatar className="size-14">
-              <AvatarFallback className="text-lg">{member.name.slice(0, 1)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-bold">{member.name}</h1>
-                <Badge variant="secondary">{member.ta.type}</Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {member.kana} ・ {member.department} ・ {member.title}
-              </p>
+        <div className="flex items-center gap-4">
+          <Avatar className="size-14">
+            <AvatarFallback className="text-lg">{member.name.slice(0, 1)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold">{member.name}</h1>
+              <Badge variant="secondary">{member.ta.type}</Badge>
             </div>
+            <p className="text-sm text-muted-foreground">
+              {member.kana} ・ {member.department} ・ {member.title}
+            </p>
           </div>
-          <Card className="w-full py-0 sm:w-72">
-            <CardContent className="p-4">
-              <div className="mb-1.5 flex items-center justify-between text-sm">
-                <span className="flex items-center gap-1 font-semibold">
-                  <Heart className="size-4 text-chart-1" />
-                  関係値：{rel.label}
-                </span>
-                <span className="font-bold">{percent}%</span>
-              </div>
-              <Progress value={percent} className="h-2.5" />
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{rel.note}</p>
-            </CardContent>
-          </Card>
         </div>
 
         <Card className="border-primary/30 bg-primary/5">
@@ -349,7 +301,7 @@ export default function MemberDetailPage() {
               </CardContent>
             </Card>
           ) : (
-            <LockedCard member={member} dkey="goal" />
+            <LockedCard dkey="goal" />
           )}
 
           {member.disclosure.currentActions === "approved" ? (
@@ -375,7 +327,7 @@ export default function MemberDetailPage() {
               </CardContent>
             </Card>
           ) : (
-            <LockedCard member={member} dkey="currentActions" />
+            <LockedCard dkey="currentActions" />
           )}
         </div>
 
@@ -395,7 +347,7 @@ export default function MemberDetailPage() {
             </CardContent>
           </Card>
         ) : (
-          <LockedCard member={member} dkey="pastActions" />
+          <LockedCard dkey="pastActions" />
         )}
 
         <TaSection member={member} showHint />

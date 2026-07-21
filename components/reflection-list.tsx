@@ -39,7 +39,7 @@ function SummarySection({
   );
 }
 
-/** 振り返り1件のAIチャット要約モーダル（一覧・カレンダー共通） */
+/** 振り返り1件のAIトーク要約モーダル（一覧・カレンダー共通） */
 export function ReflectionSummaryDialog({
   reflection,
   onClose,
@@ -56,7 +56,7 @@ export function ReflectionSummaryDialog({
             {reflection?.period} の振り返り
           </DialogTitle>
           <DialogDescription>
-            AIチャットで行った振り返りの要約です（アクション {reflection?.achieved}/
+            AIトークで行った振り返りの要約です（アクション {reflection?.achieved}/
             {reflection?.total} 達成）
           </DialogDescription>
         </DialogHeader>

@@ -29,14 +29,14 @@ import { cn } from "@/lib/utils";
 const INTRO_SLIDES = [
   {
     icon: Compass,
-    title: "CSASへようこそ",
-    body: "CSAS（キャリアセレクタビリティシステム）は、AIと一緒にキャリアの目標をつくり、週ごとの小さなアクションで一歩ずつ前に進むためのアプリです。",
+    title: "エン キャリセレAIへようこそ",
+    body: "エン キャリセレAIは、AIと一緒にキャリアの目標をつくり、週ごとの小さなアクションで一歩ずつ前に進むためのアプリです。",
     features: [],
-    note: "あなたの強みに気づく。あなたとキャリアを築く。",
+    note: "社員を主人公にする、キャリア自律支援ツール",
   },
   {
     icon: Sparkles,
-    title: "CSASでできること",
+    title: "エン キャリセレAIでできること",
     body: "日々の仕事とキャリアの目標をつなげる、3つの機能があります。",
     features: [
       {
@@ -46,7 +46,7 @@ const INTRO_SLIDES = [
       },
       {
         icon: MessageSquare,
-        title: "AIチャット",
+        title: "AIトーク",
         text: "目標の相談や週次の振り返りを、いつでもAIと行えます。",
       },
       {
@@ -429,7 +429,7 @@ export default function OnboardingPage() {
                   回答を修正する
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  あとからAIチャットで見直せます
+                  あとからAIトークで見直せます
                 </p>
               </div>
           </div>

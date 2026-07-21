@@ -71,14 +71,11 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
           <EnLogo className="mx-auto mb-4 h-16 w-auto" />
-          <h1 className="text-3xl font-bold tracking-tight">CSAS</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            キャリアセレクタビリティシステム
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">エン キャリセレAI</h1>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            あなたの強みに気づく。
+            社員を主人公にする、
             <br />
-            あなたとキャリアを築く。
+            キャリア自律支援ツール
           </p>
         </div>
 

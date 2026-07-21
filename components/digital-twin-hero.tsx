@@ -15,7 +15,6 @@ import {
 import { CsaTag } from "@/components/csa-tag";
 import { cn } from "@/lib/utils";
 import {
-  Bell,
   MessageSquare,
   Sparkles,
   HelpCircle,
@@ -39,11 +38,9 @@ function greetingByHour(hour: number) {
 export function DigitalTwinHero({
   member,
   noticeCount,
-  onOpenNotices,
 }: {
   member: Member;
   noticeCount: number;
-  onOpenNotices: () => void;
 }) {
   const firstName = member.name.split(" ")[0];
   const resolution = buildTwinResolution(member);
@@ -77,27 +74,6 @@ export function DigitalTwinHero({
 
   return (
     <Card className="relative overflow-hidden border-primary/30 bg-gradient-to-br from-primary/8 via-background to-accent/30">
-      {/* お知らせ: ヒーロー右上のベル（件数バッジ付き） */}
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        className="absolute top-3 right-3 z-10 size-9 rounded-full bg-background/90 shadow-sm"
-        onClick={onOpenNotices}
-        aria-label={
-          noticeCount > 0
-            ? `お知らせ ${noticeCount}件`
-            : "お知らせ"
-        }
-      >
-        <Bell className="size-4" />
-        {noticeCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-white">
-            {noticeCount > 9 ? "9+" : noticeCount}
-          </span>
-        )}
-      </Button>
-
       <CardContent className="flex flex-col gap-6 p-5 sm:p-6 md:flex-row md:items-stretch">
         {/* 左: ナビの吹き出し + マスコット + 主役CTA */}
         <div className="flex shrink-0 flex-col items-center justify-center gap-3 md:w-64">
@@ -114,7 +90,7 @@ export function DigitalTwinHero({
         </div>
 
         {/* 右: ナビから見たあなた（分析） */}
-        <div className="min-w-0 flex-1 space-y-4 pr-8">
+        <div className="min-w-0 flex-1 space-y-4">
           <h2 className="flex items-center gap-2 text-lg font-bold sm:text-xl">
             <Sparkles className="size-5 text-primary" />
             {MASCOT_NAME}から見た、{firstName}さん

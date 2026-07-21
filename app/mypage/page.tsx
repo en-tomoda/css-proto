@@ -48,18 +48,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Target,
-  Bell,
-  BellRing,
   LockOpen,
   Lock,
-  LockKeyhole,
   MessageSquare,
-  Gift,
-  CircleCheck,
   NotebookPen,
   Pencil,
   X,
-  ChevronDown,
   History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -73,14 +67,8 @@ export default function MyPage() {
     respondDisclosure,
     relockDisclosure,
     goalChangePrompt,
-    resolveGoalChangePrompt,
   } = useApp();
 
-  // 上部お知らせカードはAIアバターカードに集約したため現在は非表示。
-  // 将来再利用する可能性があるためコンポーネントは温存している。
-  const SHOW_TOP_NOTICES = false;
-  const [noticesOpen, setNoticesOpen] = useState(true);
-  const [noticesModalOpen, setNoticesModalOpen] = useState(false);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [goalDraft, setGoalDraft] = useState("");
   const [pathDraft, setPathDraft] = useState("");
@@ -95,103 +83,8 @@ export default function MyPage() {
   const actions = currentUser.currentActions;
   const doneCount = actions.filter((a) => a.done).length;
   const stuckActions = actions.filter((a) => !a.done && a.carriedWeeks >= 4);
-  const approvedKeys = (
-    Object.keys(currentUser.disclosure) as DisclosureKey[]
-  ).filter((k) => currentUser.disclosure[k] === "approved");
 
   const noticeCount = (goalChangePrompt ? 1 : 0) + stuckActions.length;
-
-  // お知らせの中身（上部カードとAIアバターのモーダルで共用）
-  const noticesBody = (
-    <div className="space-y-2">
-            {goalChangePrompt && (
-              <div className="flex flex-col gap-2 rounded-xl border border-chart-4/60 bg-chart-4/5 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-2.5 text-sm">
-                  <LockKeyhole className="mt-0.5 size-4 shrink-0" />
-                  {approvedKeys.length > 0 ? (
-                    <p className="leading-relaxed">
-                      目標を更新しました。いま上司に公開している情報（
-                      {approvedKeys.map((k) => DISCLOSURE_LABELS[k]).join("・")}
-                      ）をいったん非公開にしますか？
-                    </p>
-                  ) : (
-                    <p className="leading-relaxed">
-                      目標を更新しました。目標が変わると上司に見せたい情報も変わることがあります。公開状況を確認しておきましょう。
-                    </p>
-                  )}
-                </div>
-                <div className="flex shrink-0 gap-2 pl-6 sm:pl-0">
-                  {approvedKeys.length > 0 ? (
-                    <>
-                      <Button
-                        size="sm"
-                        className="rounded-full"
-                        onClick={() => {
-                          resolveGoalChangePrompt(true);
-                          toast.success("公開中の情報を非公開にしました");
-                        }}
-                      >
-                        非公開にする
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-full"
-                        onClick={() => resolveGoalChangePrompt(false)}
-                      >
-                        そのままにする
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-full"
-                      onClick={() => resolveGoalChangePrompt(false)}
-                    >
-                      確認しました
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-
-
-            {stuckActions.length > 0 && (
-              <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-2.5 text-sm">
-                  <BellRing className="mt-0.5 size-4 shrink-0 text-destructive" />
-                  <p className="leading-relaxed">
-                    「{stuckActions[0].title}」が{stuckActions[0].carriedWeeks}
-                    週間つづいています。進めにくい要因を、AIと一緒に整理してみませんか？
-                  </p>
-                </div>
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="ml-6 shrink-0 self-start rounded-full sm:ml-0 sm:self-center"
-                >
-                  <Link href="/chat">
-                    <MessageSquare className="size-4" />
-                    AIに相談する
-                  </Link>
-                </Button>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2.5 rounded-xl p-3 text-sm text-muted-foreground">
-              <Gift className="size-4 shrink-0" />
-              <p className="flex-1">今週のアクションが届きました</p>
-              <span className="text-xs">月曜 9:00</span>
-            </div>
-            <div className="flex items-center gap-2.5 rounded-xl p-3 text-sm text-muted-foreground">
-              <CircleCheck className="size-4 shrink-0" />
-              <p className="flex-1">先週の振り返りを記録しました</p>
-              <span className="text-xs">先週金曜</span>
-            </div>
-    </div>
-  );
 
   return (
     <AppShell>
@@ -203,42 +96,8 @@ export default function MyPage() {
           </p>
         </div>
 
-        {/* お知らせ（簡易通知一覧）: 現在は未使用。AIアバターカードのモーダルに集約 */}
-        {SHOW_TOP_NOTICES && (
-        <Card>
-          <CardHeader>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 text-left"
-              onClick={() => setNoticesOpen((o) => !o)}
-            >
-              <CardTitle className="flex flex-1 items-center gap-2 text-base">
-                <Bell className="size-4 text-primary" />
-                お知らせ
-                {noticeCount > 0 && (
-                  <Badge className="rounded-full px-2">{noticeCount}</Badge>
-                )}
-              </CardTitle>
-              <ChevronDown
-                className={cn(
-                  "size-4 text-muted-foreground transition-transform",
-                  noticesOpen && "rotate-180",
-                )}
-              />
-            </button>
-          </CardHeader>
-          {noticesOpen && (
-          <CardContent>{noticesBody}</CardContent>
-          )}
-        </Card>
-        )}
-
         {/* 主役: AIから見たあなた（デジタルツイン） */}
-        <DigitalTwinHero
-          member={currentUser}
-          noticeCount={noticeCount}
-          onOpenNotices={() => setNoticesModalOpen(true)}
-        />
+        <DigitalTwinHero member={currentUser} noticeCount={noticeCount} />
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="flex flex-col">
@@ -364,7 +223,7 @@ export default function MyPage() {
                 振り返りの記録
               </CardTitle>
               <CardDescription>
-                記録のある週をクリックすると、AIとのチャット内容の要約が見られます
+                記録のある週をクリックすると、AIトークの内容の要約が見られます
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -450,25 +309,6 @@ export default function MyPage() {
         </div>
 
         <TaSection member={currentUser} />
-
-        {/* AIからのお知らせモーダル */}
-        <Dialog open={noticesModalOpen} onOpenChange={setNoticesModalOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Bell className="size-4 text-primary" />
-                AIからのお知らせ
-                {noticeCount > 0 && (
-                  <Badge className="rounded-full px-2">{noticeCount}</Badge>
-                )}
-              </DialogTitle>
-              <DialogDescription>
-                確認が必要なお知らせをまとめています。
-              </DialogDescription>
-            </DialogHeader>
-            {noticesBody}
-          </DialogContent>
-        </Dialog>
 
         {/* 目標編集ダイアログ */}
         <Dialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>

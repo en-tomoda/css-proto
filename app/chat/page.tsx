@@ -71,7 +71,7 @@ export default function ChatPage() {
     <AppShell>
       <div className="mx-auto flex h-[calc(100vh-8.5rem)] max-w-2xl flex-col">
         <div className="mb-4">
-          <h1 className="text-xl font-bold">AIチャット</h1>
+          <h1 className="text-xl font-bold">AIトーク</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             キャリアの相談や週次の振り返りができます。テンプレートからも始められます。
           </p>

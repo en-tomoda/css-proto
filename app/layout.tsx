@@ -4,7 +4,7 @@ import { AppProvider } from "@/lib/store";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CSAS - キャリアセレクタビリティシステム",
+  title: "エン キャリセレAI",
   description: "あなたのキャリアに、いつもそばで伴走するAIを。",
 };
 

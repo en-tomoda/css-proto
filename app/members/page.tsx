@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { useApp } from "@/lib/store";
-import { DISCLOSURE_LABELS, type DisclosureKey, type Member } from "@/lib/data";
+import { type DisclosureKey, type Member } from "@/lib/data";
 import {
   Card,
   CardContent,
@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ChevronRight, Bell, Lock, X } from "lucide-react";
+import { ChevronRight, Lock } from "lucide-react";
 
 function DisclosureRow({
   member,
@@ -47,7 +47,7 @@ function DisclosureRow({
 }
 
 export default function MembersPage() {
-  const { members, managerNotices, dismissManagerNotice } = useApp();
+  const { members } = useApp();
 
   return (
     <AppShell>
@@ -58,49 +58,6 @@ export default function MembersPage() {
             メンバーが公開した目標やアクションを確認できます。公開範囲は各メンバーが設定します。
           </p>
         </div>
-
-        {managerNotices.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Bell className="size-4 text-primary" />
-                お知らせ
-                <Badge className="rounded-full px-2">{managerNotices.length}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {managerNotices.map((n) => (
-                <div
-                  key={n.id}
-                  className="flex items-start gap-2.5 rounded-lg border p-3"
-                >
-                  <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1 text-sm">
-                    <p className="leading-relaxed">
-                      <span className="font-semibold">{n.memberName}さん</span>
-                      が「{DISCLOSURE_LABELS[n.key]}」を非公開に戻しました
-                    </p>
-                    {n.reason && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        理由：{n.reason}
-                      </p>
-                    )}
-                  </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">{n.at}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 shrink-0 text-muted-foreground"
-                    title="既読にする"
-                    onClick={() => dismissManagerNotice(n.id)}
-                  >
-                    <X className="size-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           {members.map((m) => {
@@ -143,6 +100,16 @@ export default function MembersPage() {
                     dkey="currentActions"
                     label="現在チャレンジ中のアクション"
                     value={<p>{currentAction ? currentAction.title : "今週分はすべて完了"}</p>}
+                  />
+                  <DisclosureRow
+                    member={m}
+                    dkey="reflections"
+                    label="振り返りの要約"
+                    value={
+                      <p>
+                        {m.reflections.length}件の記録 ・ 直近「{m.reflections[0]?.period}」
+                      </p>
+                    }
                   />
                   <Button asChild variant="ghost" size="sm" className="w-full justify-between rounded-full">
                     <Link href={`/members/${m.id}`}>

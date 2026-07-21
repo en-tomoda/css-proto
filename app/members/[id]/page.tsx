@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { TaSection } from "@/components/ta-section";
+import { ReflectionList } from "@/components/reflection-list";
 import { useApp } from "@/lib/store";
 import {
   DISCLOSURE_LABELS,
@@ -155,7 +156,7 @@ function buildAiSummary(m: Member) {
     }
   }
   if (m.usage.chatPerWeek < 1) {
-    parts.push("AIチャットの利用頻度は低めです。アプリの活用について声をかけてみてください。");
+    parts.push("AIトークの利用頻度は低めです。アプリの活用について声をかけてみてください。");
   }
   return parts.join(" ");
 }
@@ -252,7 +253,7 @@ export default function MemberDetailPage() {
             <CardContent className="p-4">
               <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <MessageSquare className="size-4" />
-                AIチャット利用
+                AIトーク利用
               </p>
               <p className="mt-1 text-2xl font-bold">
                 {member.usage.chatCount}
@@ -348,6 +349,22 @@ export default function MemberDetailPage() {
           </Card>
         ) : (
           <LockedCard dkey="pastActions" />
+        )}
+
+        {member.disclosure.reflections === "approved" ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>振り返りの要約</CardTitle>
+              <CardDescription>
+                各回をクリックすると、AIトークで行った振り返りの要約が見られます
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ReflectionList reflections={member.reflections} />
+            </CardContent>
+          </Card>
+        ) : (
+          <LockedCard dkey="reflections" />
         )}
 
         <TaSection member={member} showHint />

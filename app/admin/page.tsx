@@ -7,11 +7,14 @@ import { useApp } from "@/lib/store";
 import {
   CAREER_PATHS,
   CSA_ITEMS,
+  CSA_MINDSET_COUNT,
   DEFAULT_COMPANY_ITEMS,
+  GROWTH_SUPPORT_LEVELS,
   RATINGS,
   getAccountProfile,
-  relationshipLabel,
+  growthSupportLevel,
   type Account,
+  type AccountStatus,
   type CsaItem,
   type Rating,
   type Role,
@@ -73,11 +76,12 @@ import {
   CirclePlay,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Search,
+  SlidersHorizontal,
   Target,
   Activity,
-  ArrowUpCircle,
-  ArrowDownCircle,
+  Sprout,
   Star,
   CircleCheckBig,
   CalendarDays,
@@ -143,17 +147,30 @@ const EMPTY_FORM = {
 };
 
 // 一覧のソート対象
-type SortKey = "usage" | "relManager" | "relReport" | "rating";
+type SortKey = "usage" | "growth" | "rating";
+
+// 組み合わせソートの1条件（クリック順が優先度になる）
+type SortCriterion = { key: SortKey; dir: "asc" | "desc" };
+
+const SORT_LABELS: Record<SortKey, string> = {
+  usage: "利用状況",
+  growth: "成長支援度",
+  rating: "直近の評価",
+};
+
+const NONE_FILTER = "all";
+const NO_MANAGER = "none";
+const NONE_VALUE = "none";
 
 // 評価の並び順（S が最上位）
 const RATING_ORDER: Record<Rating, number> = { S: 5, A: 4, B: 3, C: 2, D: 1 };
 
-// 関係値スコアの色分け（80以上=良好/緑、30以下=要注意/赤、それ以外=通常）
-const relationshipColor = (score: number) =>
-  score >= 80
+// 成長支援度の色分け（75以上=良好/緑、25以下=これから/やや薄め、それ以外=通常）
+const growthSupportColor = (value: number) =>
+  value >= 75
     ? "text-emerald-600"
-    : score <= 30
-      ? "text-red-600"
+    : value <= 25
+      ? "text-muted-foreground"
       : "text-foreground";
 
 export default function AdminPage() {
@@ -170,65 +187,135 @@ export default function AdminPage() {
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "all">("all");
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // 組み合わせソート（AND）。配列の順番＝優先度
+  const [sorts, setSorts] = useState<SortCriterion[]>([]);
+  // 詳細検索モーダルと、その絞り込み条件
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [deptFilter, setDeptFilter] = useState<string>(NONE_FILTER);
+  const [statusFilter, setStatusFilter] = useState<AccountStatus | "all">(NONE_FILTER);
+  const [managerFilter, setManagerFilter] = useState<string>(NONE_FILTER);
+  const [careerFilter, setCareerFilter] = useState<string>(NONE_FILTER);
+  const [ratingFilter, setRatingFilter] = useState<string>(NONE_FILTER);
+  const [growthFilter, setGrowthFilter] = useState<string>(NONE_FILTER);
   // アカウント一覧の編集モード（オフ時はラベル表示、オン時にプルダウン等が編集可能）
   const [accountsEditMode, setAccountsEditMode] = useState(false);
-  // AIカスタマイズ: CSA標準 / 自社設定 のどちらを評価・指針のベースにするか（両方可、両方時は自社を優先）
-  const [useCsaStandard, setUseCsaStandard] = useState(true);
-  const [useCompanyStandard, setUseCompanyStandard] = useState(false);
+  // AIカスタマイズ: 参照する項目が1つでもあれば、そのベースを利用中とみなす
   const [companyItems, setCompanyItems] = useState<CsaItem[]>([
     ...DEFAULT_COMPANY_ITEMS,
   ]);
-  const [csaModalOpen, setCsaModalOpen] = useState(false);
-  const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  // アコーディオンの開閉
+  const [csaOpen, setCsaOpen] = useState(false);
+  const [companyOpen, setCompanyOpen] = useState(false);
+  // AIが参照する項目（チェックが入っているもの＝活性）。初期は全項目オン
+  const [csaEnabled, setCsaEnabled] = useState<string[]>(
+    CSA_ITEMS.map((i) => i.name),
+  );
+  const [companyEnabled, setCompanyEnabled] = useState<string[]>(
+    DEFAULT_COMPANY_ITEMS.map((i) => i.name),
+  );
   const [newItemName, setNewItemName] = useState("");
   const [newItemDef, setNewItemDef] = useState("");
 
   const PER_PAGE = 20;
   const q = query.trim().toLowerCase();
+
+  // 詳細検索の選択肢（アカウントから動的に生成）
+  const departments = Array.from(new Set(accounts.map((a) => a.department))).sort();
+  const managerAccounts = accounts.filter((a) => a.roles.includes("manager"));
+
+  // 詳細検索で有効になっている条件の数（ボタンのバッジ表示用）
+  const advancedFilterCount = [
+    deptFilter,
+    statusFilter,
+    managerFilter,
+    careerFilter,
+    ratingFilter,
+    growthFilter,
+  ].filter((v) => v !== NONE_FILTER).length;
+
   const filteredAccounts = accounts.filter((a) => {
+    const p = getAccountProfile(a);
     const matchesQuery =
       !q ||
       a.name.toLowerCase().includes(q) ||
       a.email.toLowerCase().includes(q) ||
       a.department.toLowerCase().includes(q);
-    const matchesRole = roleFilter === "all" || a.roles.includes(roleFilter);
-    return matchesQuery && matchesRole;
+    const matchesRole = roleFilter === NONE_FILTER || a.roles.includes(roleFilter);
+    const matchesDept = deptFilter === NONE_FILTER || a.department === deptFilter;
+    const matchesStatus = statusFilter === NONE_FILTER || a.status === statusFilter;
+    const matchesManager =
+      managerFilter === NONE_FILTER ||
+      (managerFilter === NO_MANAGER ? !a.managerId : a.managerId === managerFilter);
+    const matchesCareer = careerFilter === NONE_FILTER || p.careerPath === careerFilter;
+    const matchesRating =
+      ratingFilter === NONE_FILTER ||
+      (ratingFilter === NONE_VALUE ? !a.rating : a.rating === ratingFilter);
+    const matchesGrowth =
+      growthFilter === NONE_FILTER ||
+      (growthFilter === NONE_VALUE
+        ? p.growthSupport === undefined
+        : p.growthSupport !== undefined &&
+          growthSupportLevel(p.growthSupport).label === growthFilter);
+    return (
+      matchesQuery &&
+      matchesRole &&
+      matchesDept &&
+      matchesStatus &&
+      matchesManager &&
+      matchesCareer &&
+      matchesRating &&
+      matchesGrowth
+    );
   });
+
   const getSortValue = (a: Account, key: SortKey): number | null => {
     const p = getAccountProfile(a);
     switch (key) {
       case "usage":
         return p.achievedActions ?? null;
-      case "relManager":
-        return p.managerRelationship ?? null;
-      case "relReport":
-        return p.reportRelationship ?? null;
+      case "growth":
+        return p.growthSupport ?? null;
       case "rating":
         return a.rating ? RATING_ORDER[a.rating] : null;
     }
   };
 
-  // データ無し（—）は方向に関わらず常に末尾へ
-  const sortedAccounts = sortKey
+  // 組み合わせソート: 優先度順に比較し、最初に差がついた条件で並べる。
+  // データ無し（—）は方向に関わらず常に末尾へ。
+  const sortedAccounts = sorts.length
     ? [...filteredAccounts].sort((a, b) => {
-        const va = getSortValue(a, sortKey);
-        const vb = getSortValue(b, sortKey);
-        if (va === null && vb === null) return 0;
-        if (va === null) return 1;
-        if (vb === null) return -1;
-        return sortDir === "asc" ? va - vb : vb - va;
+        for (const { key, dir } of sorts) {
+          const va = getSortValue(a, key);
+          const vb = getSortValue(b, key);
+          if (va === null && vb === null) continue;
+          if (va === null) return 1;
+          if (vb === null) return -1;
+          if (va !== vb) return dir === "asc" ? va - vb : vb - va;
+        }
+        return 0;
       })
     : filteredAccounts;
 
+  // 列ヘッダーのクリックで 降順→昇順→解除 の3状態を切り替える。
+  // 未選択の列を押すと、優先度の末尾に追加される。
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
+    setSorts((prev) => {
+      const cur = prev.find((s) => s.key === key);
+      if (!cur) return [...prev, { key, dir: "desc" }];
+      if (cur.dir === "desc")
+        return prev.map((s) => (s.key === key ? { ...s, dir: "asc" } : s));
+      return prev.filter((s) => s.key !== key);
+    });
+    setPage(1);
+  };
+
+  const clearAdvancedFilters = () => {
+    setDeptFilter(NONE_FILTER);
+    setStatusFilter(NONE_FILTER);
+    setManagerFilter(NONE_FILTER);
+    setCareerFilter(NONE_FILTER);
+    setRatingFilter(NONE_FILTER);
+    setGrowthFilter(NONE_FILTER);
     setPage(1);
   };
 
@@ -437,16 +524,27 @@ export default function AdminPage() {
     if (next) openDetail(next.id, detailTab);
   };
 
-  const sortIndicator = (key: SortKey) =>
-    sortKey === key ? (
-      sortDir === "asc" ? (
-        <ArrowUp className="size-3.5" />
-      ) : (
-        <ArrowDown className="size-3.5" />
-      )
-    ) : (
-      <ArrowUpDown className="size-3.5 text-muted-foreground/60" />
+  const sortIndicator = (key: SortKey) => {
+    const idx = sorts.findIndex((s) => s.key === key);
+    if (idx === -1)
+      return <ArrowUpDown className="size-3.5 text-muted-foreground/60" />;
+    const { dir } = sorts[idx];
+    return (
+      <span className="inline-flex items-center gap-0.5 text-primary">
+        {dir === "asc" ? (
+          <ArrowUp className="size-3.5" />
+        ) : (
+          <ArrowDown className="size-3.5" />
+        )}
+        {/* 複数条件のときは優先度番号を表示 */}
+        {sorts.length > 1 && (
+          <span className="flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+            {idx + 1}
+          </span>
+        )}
+      </span>
     );
+  };
 
   const sortButton = (label: string, key: SortKey, className?: string) => (
     <button
@@ -454,6 +552,7 @@ export default function AdminPage() {
       onClick={() => toggleSort(key)}
       className={cn(
         "inline-flex items-center gap-1 whitespace-nowrap transition-colors select-none hover:text-foreground",
+        sorts.some((s) => s.key === key) && "text-foreground",
         className,
       )}
     >
@@ -503,14 +602,16 @@ export default function AdminPage() {
   };
 
   const saveAiSettings = () => {
-    if (!useCsaStandard && !useCompanyStandard) {
-      toast.error("CSA標準・自社設定のどちらかを選択してください");
+    const csaOn = csaEnabled.length > 0;
+    const companyOn = companyEnabled.length > 0;
+    if (!csaOn && !companyOn) {
+      toast.error("CSA標準・自社設定のどちらかで、参照する項目を選択してください");
       return;
     }
     const base =
-      useCsaStandard && useCompanyStandard
+      csaOn && companyOn
         ? "自社設定を優先しつつCSA標準を補完に使う設定"
-        : useCompanyStandard
+        : companyOn
           ? "自社設定"
           : "CSA標準";
     setConfirm({
@@ -523,14 +624,33 @@ export default function AdminPage() {
 
   const addCompanyItem = () => {
     if (!newItemName.trim() || !newItemDef.trim()) return;
-    setCompanyItems((prev) => [
-      ...prev,
-      { name: newItemName.trim(), definition: newItemDef.trim() },
-    ]);
+    const name = newItemName.trim();
+    setCompanyItems((prev) => [...prev, { name, definition: newItemDef.trim() }]);
+    setCompanyEnabled((prev) => [...prev, name]);
     setNewItemName("");
     setNewItemDef("");
-    toast.success(`自社設定に「${newItemName.trim()}」を追加しました`);
+    toast.success(`自社設定に「${name}」を追加しました`);
   };
+
+  const removeCompanyItem = (index: number, name: string) => {
+    setCompanyItems((prev) => prev.filter((_, idx) => idx !== index));
+    setCompanyEnabled((prev) => prev.filter((n) => n !== name));
+    toast.success(`「${name}」を削除しました`);
+  };
+
+  // 項目ごとの活性/非活性トグル
+  const toggleCsaItem = (name: string) =>
+    setCsaEnabled((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+    );
+  const toggleCompanyItem = (name: string) =>
+    setCompanyEnabled((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+    );
+
+  const csaAllOn = csaEnabled.length === CSA_ITEMS.length;
+  const companyAllOn =
+    companyItems.length > 0 && companyEnabled.length === companyItems.length;
 
   return (
     <AppShell wide>
@@ -592,7 +712,7 @@ export default function AdminPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                     <div className="relative flex-1">
                       <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -622,6 +742,58 @@ export default function AdminPage() {
                         <SelectItem value="admin">管理者</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Button
+                      variant="outline"
+                      className="w-full shrink-0 sm:w-auto"
+                      onClick={() => setSearchModalOpen(true)}
+                    >
+                      <SlidersHorizontal className="size-4" />
+                      詳細検索
+                      {advancedFilterCount > 0 && (
+                        <Badge className="ml-1 rounded-full px-1.5">
+                          {advancedFilterCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* 絞り込み・並び替えの状況バー。常時描画して高さを確保し、
+                      ソート切替時にテーブルが上下しない（レイアウトシフト防止）。 */}
+                  <div className="mb-4 flex min-h-7 flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+                      {advancedFilterCount > 0 && (
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground">
+                            絞り込み {advancedFilterCount} 件
+                          </span>
+                          <button
+                            type="button"
+                            onClick={clearAdvancedFilters}
+                            className="rounded-full px-2 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            クリア
+                          </button>
+                        </span>
+                      )}
+                      {sorts.length > 0 && (
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground">
+                            並び替え：
+                            {sorts
+                              .map(
+                                (s, i) =>
+                                  `${i + 1}. ${SORT_LABELS[s.key]}（${s.dir === "asc" ? "昇順" : "降順"}）`,
+                              )
+                              .join(" → ")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSorts([])}
+                            className="rounded-full px-2 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            並び替えクリア
+                          </button>
+                        </span>
+                      )}
                   </div>
                   {pagedAccounts.length === 0 ? (
                     <p className="py-10 text-center text-sm text-muted-foreground">
@@ -635,6 +807,7 @@ export default function AdminPage() {
                         <TableHead>部署</TableHead>
                         <TableHead>権限</TableHead>
                         <TableHead>上司</TableHead>
+                        <TableHead>キャリア希望</TableHead>
                         <TableHead className="text-center">
                           <div className="inline-flex items-center gap-1">
                             {sortButton("利用状況", "usage")}
@@ -649,10 +822,19 @@ export default function AdminPage() {
                           </div>
                         </TableHead>
                         <TableHead className="text-center">
-                          {sortButton("関係値（上司）", "relManager")}
-                        </TableHead>
-                        <TableHead className="text-center">
-                          {sortButton("関係値（部下）", "relReport")}
+                          <div className="inline-flex items-center gap-1">
+                            {sortButton("成長支援度", "growth")}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">
+                                  <Info className="size-3.5 text-muted-foreground" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                上司が成長をどれだけ支援できているかの度合い（5段階）
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                         </TableHead>
                         <TableHead className="text-center">
                           {sortButton("直近の評価", "rating")}
@@ -735,6 +917,18 @@ export default function AdminPage() {
                               </span>
                             )}
                           </TableCell>
+                          <TableCell>
+                            {profile.careerPath ? (
+                              <span
+                                className="block max-w-[13rem] truncate text-sm"
+                                title={profile.careerPath}
+                              >
+                                {profile.careerPath}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-center tabular-nums">
                             {profile.achievedActions !== undefined ? (
                               profile.achievedActions
@@ -742,29 +936,15 @@ export default function AdminPage() {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-center tabular-nums">
-                            {profile.managerRelationship !== undefined ? (
+                          <TableCell className="text-center">
+                            {profile.growthSupport !== undefined ? (
                               <span
                                 className={cn(
-                                  "font-medium",
-                                  relationshipColor(profile.managerRelationship),
+                                  "text-sm font-medium",
+                                  growthSupportColor(profile.growthSupport),
                                 )}
                               >
-                                {profile.managerRelationship}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center tabular-nums">
-                            {profile.reportRelationship !== undefined ? (
-                              <span
-                                className={cn(
-                                  "font-medium",
-                                  relationshipColor(profile.reportRelationship),
-                                )}
-                              >
-                                {profile.reportRelationship}
+                                {growthSupportLevel(profile.growthSupport).label}
                               </span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
@@ -887,7 +1067,7 @@ export default function AdminPage() {
                 <CardHeader>
                   <CardTitle>キャリアパス設定</CardTitle>
                   <CardDescription>
-                    ここで設定したキャリアパスが、メンバーの目標設定（初回設定・AIチャット）の選択肢になります。
+                    ここで設定したキャリアパスが、メンバーの目標設定（初回設定・AIトーク）の選択肢になります。
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -944,56 +1124,259 @@ export default function AdminPage() {
                     AIが目標設定・キャリア相談で参照する評価・指針のベースを選びます。
                   </p>
 
-                  {/* CSA標準 */}
-                  <div className="flex items-start gap-3 rounded-xl border p-4">
-                    <Checkbox
-                      checked={useCsaStandard}
-                      onCheckedChange={(v) => setUseCsaStandard(!!v)}
-                      className="mt-0.5"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                  {/* CSA標準（アコーディオン） */}
+                  <div className="rounded-xl border p-4">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={csaEnabled.length > 0}
+                        onCheckedChange={(v) =>
+                          setCsaEnabled(v ? CSA_ITEMS.map((i) => i.name) : [])
+                        }
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold">CSA標準（エン標準）</p>
-                        <Badge variant="outline">変更不可</Badge>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          CSAの{CSA_ITEMS.length}項目のうち、AIが参照する項目を選べます（現在 {csaEnabled.length}/{CSA_ITEMS.length} 項目）。
+                        </p>
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex items-center gap-1 text-sm text-primary transition-colors hover:text-primary/80"
+                          onClick={() => setCsaOpen((o) => !o)}
+                        >
+                          詳細を見る
+                          <ChevronDown
+                            className={cn(
+                              "size-3.5 transition-transform",
+                              csaOpen && "rotate-180",
+                            )}
+                          />
+                        </button>
                       </div>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        CSAの{CSA_ITEMS.length}項目をベースにAIが助言します。
-                      </p>
-                      <Button
-                        variant="link"
-                        className="mt-1 h-auto p-0 text-sm"
-                        onClick={() => setCsaModalOpen(true)}
-                      >
-                        詳細を見る
-                        <ChevronRight className="size-3.5" />
-                      </Button>
+                    </div>
+
+                    <div
+                      className={cn(
+                        "grid transition-[grid-template-rows] duration-300 ease-out",
+                        csaOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+                      )}
+                    >
+                      <div className="overflow-hidden" inert={!csaOpen}>
+                        <div className="mt-3 border-t pt-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {csaEnabled.length} / {CSA_ITEMS.length} 項目を利用中
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="rounded-full text-muted-foreground"
+                            onClick={() =>
+                              setCsaEnabled(
+                                csaAllOn ? [] : CSA_ITEMS.map((i) => i.name),
+                              )
+                            }
+                          >
+                            {csaAllOn ? "すべて取り外す" : "すべて選択"}
+                          </Button>
+                        </div>
+                        <div className="max-h-[24rem] space-y-4 overflow-y-auto pr-1">
+                          {[
+                            {
+                              label: "考え方",
+                              hint: `1〜${CSA_MINDSET_COUNT}`,
+                              items: CSA_ITEMS.slice(0, CSA_MINDSET_COUNT),
+                              offset: 0,
+                            },
+                            {
+                              label: "能力",
+                              hint: `${CSA_MINDSET_COUNT + 1}〜${CSA_ITEMS.length}`,
+                              items: CSA_ITEMS.slice(CSA_MINDSET_COUNT),
+                              offset: CSA_MINDSET_COUNT,
+                            },
+                          ].map((group) => (
+                            <div key={group.label} className="space-y-2">
+                              {/* 分類の見出し（考え方 / 能力） */}
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                                  {group.label}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground">
+                                  {group.hint}
+                                </span>
+                                <span className="h-px flex-1 bg-border" />
+                              </div>
+                              {group.items.map((item, idx) => {
+                                const i = group.offset + idx;
+                                const on = csaEnabled.includes(item.name);
+                                return (
+                                  <label
+                                    key={item.name}
+                                    className={cn(
+                                      "flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors",
+                                      on ? "bg-background" : "bg-muted/40 opacity-70",
+                                    )}
+                                  >
+                                    <Checkbox
+                                      checked={on}
+                                      onCheckedChange={() => toggleCsaItem(item.name)}
+                                      className="mt-0.5"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="flex items-center gap-2 text-sm font-semibold">
+                                        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] text-secondary-foreground">
+                                          {i + 1}
+                                        </span>
+                                        {item.name}
+                                      </p>
+                                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                                        {item.definition}
+                                      </p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* 自社設定 */}
-                  <div className="flex items-start gap-3 rounded-xl border p-4">
-                    <Checkbox
-                      checked={useCompanyStandard}
-                      onCheckedChange={(v) => setUseCompanyStandard(!!v)}
-                      className="mt-0.5"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold">自社設定</p>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        自社独自の評価項目を追加できます（現在 {companyItems.length} 項目）。
-                      </p>
-                      <Button
-                        variant="link"
-                        className="mt-1 h-auto p-0 text-sm"
-                        onClick={() => setCompanyModalOpen(true)}
-                      >
-                        項目を設定する
-                        <ChevronRight className="size-3.5" />
-                      </Button>
+                  {/* 自社設定（アコーディオン） */}
+                  <div className="rounded-xl border p-4">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={companyEnabled.length > 0}
+                        onCheckedChange={(v) =>
+                          setCompanyEnabled(
+                            v ? companyItems.map((i) => i.name) : [],
+                          )
+                        }
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold">自社設定</p>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          自社独自の評価項目を追加し、AIが参照する項目を選べます（現在 {companyEnabled.length}/{companyItems.length} 項目）。
+                        </p>
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex items-center gap-1 text-sm text-primary transition-colors hover:text-primary/80"
+                          onClick={() => setCompanyOpen((o) => !o)}
+                        >
+                          項目を設定する
+                          <ChevronDown
+                            className={cn(
+                              "size-3.5 transition-transform",
+                              companyOpen && "rotate-180",
+                            )}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      className={cn(
+                        "grid transition-[grid-template-rows] duration-300 ease-out",
+                        companyOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+                      )}
+                    >
+                      <div className="overflow-hidden" inert={!companyOpen}>
+                        <div className="mt-3 space-y-3 border-t pt-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {companyEnabled.length} / {companyItems.length} 項目を利用中
+                          </span>
+                          {companyItems.length > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="rounded-full text-muted-foreground"
+                              onClick={() =>
+                                setCompanyEnabled(
+                                  companyAllOn
+                                    ? []
+                                    : companyItems.map((i) => i.name),
+                                )
+                              }
+                            >
+                              {companyAllOn ? "すべて取り外す" : "すべて選択"}
+                            </Button>
+                          )}
+                        </div>
+                        <div className="max-h-[18rem] space-y-2 overflow-y-auto pr-1">
+                          {companyItems.length === 0 && (
+                            <p className="py-6 text-center text-sm text-muted-foreground">
+                              まだ項目がありません。下から追加してください。
+                            </p>
+                          )}
+                          {companyItems.map((item, i) => {
+                            const on = companyEnabled.includes(item.name);
+                            return (
+                              <div
+                                key={item.name}
+                                className={cn(
+                                  "flex items-start gap-2.5 rounded-lg border p-3 transition-colors",
+                                  on ? "bg-background" : "bg-muted/40 opacity-70",
+                                )}
+                              >
+                                <Checkbox
+                                  checked={on}
+                                  onCheckedChange={() =>
+                                    toggleCompanyItem(item.name)
+                                  }
+                                  className="mt-0.5"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold">{item.name}</p>
+                                  <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+                                    {item.definition}
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+                                  title="削除"
+                                  onClick={() => removeCompanyItem(i, item.name)}
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                          <p className="text-sm font-semibold">項目を追加</p>
+                          <Input
+                            value={newItemName}
+                            onChange={(e) => setNewItemName(e.target.value)}
+                            placeholder="項目名（例：顧客起点力）"
+                          />
+                          <Textarea
+                            rows={2}
+                            value={newItemDef}
+                            onChange={(e) => setNewItemDef(e.target.value)}
+                            placeholder="定義（どんな行動を評価するか）"
+                          />
+                          <Button
+                            size="sm"
+                            className="rounded-full"
+                            disabled={!newItemName.trim() || !newItemDef.trim()}
+                            onClick={addCompanyItem}
+                          >
+                            <Plus className="size-4" />
+                            追加する
+                          </Button>
+                        </div>
+                      </div>
+                      </div>
                     </div>
                   </div>
 
-                  {useCsaStandard && useCompanyStandard && (
+                  {csaEnabled.length > 0 && companyEnabled.length > 0 && (
                     <p className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
                       両方を選択しているため、<span className="font-semibold text-foreground">自社設定を優先</span>し、CSA標準は補完として利用します。
                     </p>
@@ -1076,7 +1459,7 @@ export default function AdminPage() {
                   <div className="flex items-start gap-3">
                     <Target className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-muted-foreground">ポジション意向</p>
+                      <p className="text-xs text-muted-foreground">キャリア希望</p>
                       <p className="text-sm font-medium">
                         {detailProfile.careerPath ?? "未設定"}
                       </p>
@@ -1133,20 +1516,23 @@ export default function AdminPage() {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <ArrowUpCircle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <Sprout className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-muted-foreground">上司との関係値</p>
-                      {detailProfile.managerRelationship !== undefined ? (
+                      <p className="text-xs text-muted-foreground">成長支援度</p>
+                      {detailProfile.growthSupport !== undefined ? (
                         <div className="mt-1.5 space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium">
-                              {relationshipLabel(detailProfile.managerRelationship)}
+                              {growthSupportLevel(detailProfile.growthSupport).label}
                             </span>
                             <span className="text-sm tabular-nums text-muted-foreground">
-                              {detailProfile.managerRelationship} / 100
+                              {detailProfile.growthSupport} / 100
                             </span>
                           </div>
-                          <Progress value={detailProfile.managerRelationship} />
+                          <Progress value={detailProfile.growthSupport} />
+                          <p className="text-xs text-muted-foreground">
+                            {growthSupportLevel(detailProfile.growthSupport).note}
+                          </p>
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground">—（上司が未設定です）</p>
@@ -1154,30 +1540,8 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <ArrowDownCircle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-muted-foreground">部下との関係値</p>
-                      {detailProfile.reportRelationship !== undefined ? (
-                        <div className="mt-1.5 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">
-                              {relationshipLabel(detailProfile.reportRelationship)}
-                            </span>
-                            <span className="text-sm tabular-nums text-muted-foreground">
-                              {detailProfile.reportRelationship} / 100
-                            </span>
-                          </div>
-                          <Progress value={detailProfile.reportRelationship} />
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">—（部下がいません）</p>
-                      )}
-                    </div>
-                  </div>
-
                   <p className="text-xs text-muted-foreground">
-                    ※ 関係値は今後追加予定のAIアバターとのサーベイ結果をもとに算出します（現在はモック値）。
+                    ※ 成長支援度は今後追加予定のAIアバターとのサーベイ結果をもとに算出します（現在はモック値）。
                   </p>
 
                   <Separator />
@@ -1248,94 +1612,177 @@ export default function AdminPage() {
           </DialogContent>
         </Dialog>
 
-        {/* CSA標準の詳細（読み取り専用） */}
-        <Dialog open={csaModalOpen} onOpenChange={setCsaModalOpen}>
-          <DialogContent className="sm:max-w-2xl">
+        {/* 詳細検索（絞り込み） */}
+        <Dialog open={searchModalOpen} onOpenChange={setSearchModalOpen}>
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>CSA標準（エン標準）の評価項目</DialogTitle>
+              <DialogTitle>詳細検索</DialogTitle>
               <DialogDescription>
-                CSAの{CSA_ITEMS.length}項目です。内容は変更できません。
+                複数の条件を組み合わせて（AND）アカウントを絞り込みます。
               </DialogDescription>
             </DialogHeader>
-            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-              {CSA_ITEMS.map((item, i) => (
-                <div key={item.name} className="rounded-lg border p-3">
-                  <p className="flex items-center gap-2 text-sm font-semibold">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] text-secondary-foreground">
-                      {i + 1}
-                    </span>
-                    {item.name}
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    {item.definition}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>部署</Label>
+                <Select
+                  value={deptFilter}
+                  onValueChange={(v) => {
+                    setDeptFilter(v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_FILTER}>すべて</SelectItem>
+                    {departments.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-        {/* 自社設定（編集可能） */}
-        <Dialog open={companyModalOpen} onOpenChange={setCompanyModalOpen}>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>自社設定の評価項目</DialogTitle>
-              <DialogDescription>
-                自社独自の評価項目を追加・削除できます。AIはこれらを優先して参照します。
-              </DialogDescription>
-            </DialogHeader>
-            <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
-              {companyItems.length === 0 && (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  まだ項目がありません。下から追加してください。
-                </p>
-              )}
-              {companyItems.map((item, i) => (
-                <div key={item.name} className="flex items-start gap-2 rounded-lg border p-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">{item.name}</p>
-                    <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
-                      {item.definition}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
-                    title="削除"
-                    onClick={() => {
-                      setCompanyItems((prev) => prev.filter((_, idx) => idx !== i));
-                      toast.success(`「${item.name}」を削除しました`);
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              ))}
+              <div className="space-y-1.5">
+                <Label>状態</Label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => {
+                    setStatusFilter(v as AccountStatus | "all");
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_FILTER}>すべて</SelectItem>
+                    {(Object.keys(STATUS_LABELS) as AccountStatus[]).map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {STATUS_LABELS[s]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>上司</Label>
+                <Select
+                  value={managerFilter}
+                  onValueChange={(v) => {
+                    setManagerFilter(v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_FILTER}>すべて</SelectItem>
+                    <SelectItem value={NO_MANAGER}>未設定</SelectItem>
+                    {managerAccounts.map((mgr) => (
+                      <SelectItem key={mgr.id} value={mgr.id}>
+                        {mgr.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>キャリア希望</Label>
+                <Select
+                  value={careerFilter}
+                  onValueChange={(v) => {
+                    setCareerFilter(v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_FILTER}>すべて</SelectItem>
+                    {CAREER_PATHS.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>直近の評価</Label>
+                <Select
+                  value={ratingFilter}
+                  onValueChange={(v) => {
+                    setRatingFilter(v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_FILTER}>すべて</SelectItem>
+                    {RATINGS.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={NONE_VALUE}>未評価</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>成長支援度</Label>
+                <Select
+                  value={growthFilter}
+                  onValueChange={(v) => {
+                    setGrowthFilter(v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_FILTER}>すべて</SelectItem>
+                    {[...GROWTH_SUPPORT_LEVELS]
+                      .reverse()
+                      .map((lv) => (
+                        <SelectItem key={lv.value} value={lv.label}>
+                          {lv.label}
+                        </SelectItem>
+                      ))}
+                    <SelectItem value={NONE_VALUE}>該当なし</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-              <p className="text-sm font-semibold">項目を追加</p>
-              <Input
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
-                placeholder="項目名（例：顧客起点力）"
-              />
-              <Textarea
-                rows={2}
-                value={newItemDef}
-                onChange={(e) => setNewItemDef(e.target.value)}
-                placeholder="定義（どんな行動を評価するか）"
-              />
-              <Button
-                size="sm"
-                className="rounded-full"
-                disabled={!newItemName.trim() || !newItemDef.trim()}
-                onClick={addCompanyItem}
-              >
-                <Plus className="size-4" />
-                追加する
-              </Button>
-            </div>
+
+            <DialogFooter className="sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">
+                  一致：<span className="font-semibold text-foreground">{filteredAccounts.length}</span> 件
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  disabled={advancedFilterCount === 0}
+                  onClick={clearAdvancedFilters}
+                >
+                  条件をクリア
+                </Button>
+              </div>
+              <Button onClick={() => setSearchModalOpen(false)}>結果を見る</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Users, Settings, User, LogOut } from "lucide-react";
 import { EnLogo } from "@/components/en-logo";
+import { HeaderNotices } from "@/components/header-notices";
 
 const NAV = [
   { href: "/mypage", label: "マイキャリア", icon: User, roles: ["member", "manager"] },
-  { href: "/chat", label: "AIチャット", icon: MessageSquare, roles: ["member", "manager"] },
+  { href: "/chat", label: "AIトーク", icon: MessageSquare, roles: ["member", "manager"] },
   { href: "/members", label: "メンバー", icon: Users, roles: ["manager"] },
   { href: "/admin", label: "管理者設定", icon: Settings, roles: ["admin"] },
 ] as const;
@@ -59,7 +60,7 @@ export function AppShell({
             className="flex shrink-0 items-center gap-2 font-bold"
           >
             <EnLogo className="h-7 w-auto" />
-            <span className="hidden sm:inline">キャリアセレクタビリティシステム</span>
+            <span className="hidden sm:inline">エン キャリセレAI</span>
           </Link>
           <nav className="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1">
             {visibleNav.map((item) => {
@@ -85,6 +86,7 @@ export function AppShell({
             })}
           </nav>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <HeaderNotices />
             <Badge variant="secondary" className="max-w-28 truncate sm:max-w-none">
               {ROLE_NAMES[role]}（{ROLE_LABELS[role]}）
             </Badge>

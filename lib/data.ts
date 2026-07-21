@@ -1,6 +1,10 @@
 export type Role = "member" | "manager" | "admin";
 
-export type DisclosureKey = "goal" | "pastActions" | "currentActions";
+export type DisclosureKey =
+  | "goal"
+  | "pastActions"
+  | "currentActions"
+  | "reflections";
 export type DisclosureState = "locked" | "requested" | "approved";
 
 export type WeeklyAction = {
@@ -221,6 +225,7 @@ export const DISCLOSURE_LABELS: Record<DisclosureKey, string> = {
   goal: "目標",
   pastActions: "達成したアクション（過去の実績）",
   currentActions: "現在チャレンジ中のアクション",
+  reflections: "振り返りの要約",
 };
 
 /** CSA（エン標準）の評価項目。AIカスタマイズのベース。変更不可 */
@@ -255,6 +260,12 @@ export const CSA_ITEMS: CsaItem[] = [
   { name: "組織目標推進力", definition: "組織目標を明確にし、その達成の為に、社内外の経営資源（人・物・金・時間・情報・知的財産）を戦略的に活用しマネジメントをしている" },
   { name: "新規事業創出力", definition: "事業バリューに沿った新しい商品・サービス・システムを考え出し、事業化・組織化を行なっている（発想力＋論理力）" },
 ];
+
+/**
+ * CSA項目の分類の区切り。CSA_ITEMS の先頭7項目は「考え方」、8項目め以降は「能力」。
+ * slice(0, CSA_MINDSET_COUNT)=考え方 / slice(CSA_MINDSET_COUNT)=能力
+ */
+export const CSA_MINDSET_COUNT = 7;
 
 /** CSA項目名 → 定義 を引く（タグのポップオーバー用） */
 export function csaDefinition(name: string): string | undefined {
@@ -436,7 +447,7 @@ export const MEMBERS: Member[] = [
         "3年後、どんなチームをつくっていたい？",
       ],
     },
-    disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
+    disclosure: { goal: "locked", pastActions: "locked", currentActions: "locked", reflections: "locked" },
   },
   {
     id: "m2",
@@ -554,7 +565,7 @@ export const MEMBERS: Member[] = [
         "専門性を、この先どこまで尖らせたい？",
       ],
     },
-    disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
+    disclosure: { goal: "locked", pastActions: "locked", currentActions: "locked", reflections: "locked" },
   },
   {
     id: "m3",
@@ -651,7 +662,7 @@ export const MEMBERS: Member[] = [
         "苦手だと感じるのはどんなとき？",
       ],
     },
-    disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
+    disclosure: { goal: "locked", pastActions: "locked", currentActions: "locked", reflections: "locked" },
   },
   {
     id: "m4",
@@ -769,7 +780,7 @@ export const MEMBERS: Member[] = [
         "熱が冷めてしまうのは、どんなとき？",
       ],
     },
-    disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
+    disclosure: { goal: "locked", pastActions: "locked", currentActions: "locked", reflections: "locked" },
   },
   {
     id: "m5",
@@ -865,7 +876,7 @@ export const MEMBERS: Member[] = [
         "本当に守りたいものは何？",
       ],
     },
-    disclosure: { goal: "approved", pastActions: "approved", currentActions: "approved" },
+    disclosure: { goal: "locked", pastActions: "locked", currentActions: "locked", reflections: "locked" },
   },
 ];
 
@@ -923,32 +934,31 @@ export const ACCOUNTS: Account[] = [
   { id: "u28", name: "人事 一郎", email: "jinji@example.co.jp", roles: ["admin"], department: "人事部", status: "active" },
 ];
 
-/** アンロック数(0-3) → 関係値レベル */
-export const RELATIONSHIP_LEVELS = [
-  { level: 1, label: "はじめまして", note: "まずは基本情報とTAから理解を深めましょう" },
-  { level: 2, label: "顔見知り", note: "目標が見えてきました。1on1で話題にしてみましょう" },
-  { level: 3, label: "信頼関係", note: "取り組みが見えています。具体的な支援ができる関係です" },
-  { level: 4, label: "パートナー", note: "全情報が公開されています。伴走者として支援しましょう" },
-];
+/** 成長支援度（5段階）。上司がメンバーの成長をどれだけ支援できているかの度合い */
+export const GROWTH_SUPPORT_LEVELS = [
+  { value: 0, label: "D", note: "支援はこれから。まずは接点づくりから始めましょう" },
+  { value: 25, label: "C", note: "少しずつ関わりが生まれています" },
+  { value: 50, label: "B", note: "定期的に成長を支援できています" },
+  { value: 75, label: "A", note: "深く伴走し、成長を後押しできています" },
+  { value: 100, label: "S", note: "信頼し合い、互いに高め合える関係です" },
+] as const;
 
 /**
  * 管理者一覧で表示するアカウントの付加プロフィール。
  * 実メンバー(m1〜m5)は実データを、それ以外は id から決定論的に生成したモック値を返す。
- * 関係値は「今後追加予定のAIアバターとのサーベイ」の結果を想定したプレースホルダー。
+ * 成長支援度は「今後追加予定のAIアバターとのサーベイ」の結果を想定したプレースホルダー。
  */
 export type AccountProfile = {
-  /** ポジション意向（設定されているキャリアパス）。メンバー権限がない場合は undefined */
+  /** キャリア希望（設定されているキャリアパス）。メンバー権限がない場合は undefined */
   careerPath?: string;
   /** アプリ利用状況（アクション達成数）。メンバー権限がない場合は undefined */
   achievedActions?: number;
   /** ログイン日数。メンバー権限がない場合は undefined */
   loginDays?: number;
-  /** AIチャット利用回数。メンバー権限がない場合は undefined */
+  /** AIトーク利用回数。メンバー権限がない場合は undefined */
   chatCount?: number;
-  /** 上司との関係値 0-100。上司が紐づく場合のみ */
-  managerRelationship?: number;
-  /** 部下との関係値 0-100。上司権限を持つ場合のみ */
-  reportRelationship?: number;
+  /** 成長支援度（0/25/50/75/100 の5段階）。上司が紐づく場合のみ */
+  growthSupport?: number;
 };
 
 /** 文字列から決定論的な擬似乱数（0以上の整数）を得る */
@@ -966,7 +976,6 @@ function seededScore(seed: string, min: number, max: number): number {
 export function getAccountProfile(account: Account): AccountProfile {
   const member = MEMBERS.find((m) => m.name === account.name);
   const isMember = account.roles.includes("member");
-  const isManager = account.roles.includes("manager");
   return {
     careerPath:
       member?.careerPath ??
@@ -982,19 +991,17 @@ export function getAccountProfile(account: Account): AccountProfile {
     chatCount:
       member?.usage.chatCount ??
       (isMember ? seededScore(`${account.id}-chat`, 3, 80) : undefined),
-    managerRelationship: account.managerId
-      ? seededScore(`${account.id}-mgr`, 21, 96)
-      : undefined,
-    reportRelationship: isManager
-      ? seededScore(`${account.id}-rep`, 52, 96)
+    growthSupport: account.managerId
+      ? GROWTH_SUPPORT_LEVELS[
+          seededInt(`${account.id}-gs`) % GROWTH_SUPPORT_LEVELS.length
+        ].value
       : undefined,
   };
 }
 
-/** 関係値スコア(0-100)を4段階のやさしいラベルに変換 */
-export function relationshipLabel(score: number): string {
-  if (score >= 85) return "良好";
-  if (score >= 70) return "順調";
-  if (score >= 55) return "構築中";
-  return "これから";
+/** 成長支援度の値(0-100) → 最も近い5段階を返す */
+export function growthSupportLevel(value: number) {
+  return GROWTH_SUPPORT_LEVELS.reduce((closest, lv) =>
+    Math.abs(lv.value - value) < Math.abs(closest.value - value) ? lv : closest,
+  );
 }
